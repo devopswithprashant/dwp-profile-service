@@ -4,6 +4,7 @@ import cats.Applicative
 import cats.Functor
 import cats.syntax.all.*
 import io.circe.Json
+import java.net.URI
 import java.util.UUID
 
 sealed trait UserProfileServiceError
@@ -54,11 +55,48 @@ final class UserProfileService[F[_]: Functor](
   ): Either[List[ProfileUpdateValidationError], UserProfileUpdate] =
     val errors =
       List(
+        validateText("displayName", update.displayName, 100),
+        validateText("bio", update.bio, 500),
+        validateAvatarUrl(update.avatarUrl),
         validateJsonObject("preferences", update.preferences),
         validateJsonObject("socialLinks", update.socialLinks)
       ).flatten
 
     Either.cond(errors.isEmpty, update, errors)
+
+  private def validateText(
+    field: String,
+    value: Option[String],
+    maximumLength: Int
+  ): Option[ProfileUpdateValidationError] =
+    Option.when(
+      value.exists(text => text.codePointCount(0, text.length) > maximumLength)
+    ) {
+      ProfileUpdateValidationError(field, s"must be at most $maximumLength characters")
+    }
+
+  private def validateAvatarUrl(
+    value: Option[String]
+  ): Option[ProfileUpdateValidationError] =
+    value.flatMap { url =>
+      val valid =
+        url.codePointCount(0, url.length) <= 2048 &&
+          Either
+            .catchOnly[IllegalArgumentException](URI.create(url))
+            .exists(uri =>
+              uri.isAbsolute &&
+                Option(uri.getScheme).exists(_.equalsIgnoreCase("https")) &&
+                Option(uri.getHost).exists(_.nonEmpty) &&
+                uri.getRawUserInfo == null
+            )
+
+      Option.when(!valid) {
+        ProfileUpdateValidationError(
+          "avatarUrl",
+          "must be an absolute HTTPS URL without user information and at most 2048 characters"
+        )
+      }
+    }
 
   private def validateJsonObject(
     field: String,

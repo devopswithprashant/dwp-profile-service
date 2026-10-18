@@ -7,7 +7,7 @@
 **Service:** User Service  
 **Language:** Scala 3  
 **Current development phase:** Phase 8 — JWT Validation
-**Current implementation status:** Phase 7 gRPC contract/server is implemented and exercised over a local gRPC channel. The public Phase 6 API is implemented; authenticated `/me` routes remain HTTP 501 until JWT validation supplies a trusted subject.
+**Current implementation status:** Phases 1–8 are implemented. Phase 6 public and authenticated REST routes and Phase 8 HS384 JWT validation are verified against local PostgreSQL. Phase 7 gRPC is implemented and exercised over a local gRPC channel.
 
 ---
 
@@ -296,9 +296,9 @@ The `/health` endpoint is already implemented.
 
 `GET /api/v1/users/{userId}` is implemented. It accepts canonical UUIDs, returns only the public profile projection, returns HTTP 400 for malformed UUIDs, and returns HTTP 404 when the profile does not exist.
 
-`GET /api/v1/users/me` and `PUT /api/v1/users/me` return HTTP 501 until Phase 8 JWT middleware can provide a validated subject UUID. Client-supplied identities must not be trusted.
+`GET /api/v1/users/me` and `PUT /api/v1/users/me` require a verified Bearer JWT and use its UUID subject; client-supplied identities are not trusted. Missing or invalid tokens return HTTP 401.
 
-`UserProfileUpdateRequest` defines the update JSON contract: `preferences` and `socialLinks` are required JSON objects; omitted nullable string fields decode to `None` and therefore clear those fields on update. Field-length and avatar URL policies remain to be finalized before enabling the authenticated update route.
+`UserProfileUpdateRequest` defines the update JSON contract: `preferences` and `socialLinks` are required JSON objects; omitted nullable string fields decode to `None` and therefore clear those fields on update. Updates allow `displayName` up to 100 characters, `bio` up to 500 characters, and `avatarUrl` up to 2048 characters as an absolute HTTPS URL without user information.
 
 The public profile response includes only the user UUID, display name, bio, avatar URL, and creation timestamp. Preferences and social links are excluded.
 
@@ -404,7 +404,7 @@ A future migration to asymmetric signing may be considered separately, but it is
 | Database migrations | Flyway 13.10.3 | V1 applied and verified |
 | Internal RPC | gRPC | Planned |
 | RPC contract | Protobuf | Planned |
-| JWT validation | Compatible with Auth Service HS384 tokens | Planned |
+| JWT validation | Compatible with Auth Service HS384 tokens | Implemented |
 | Unit/integration testing | MUnit and Cats Effect testing dependencies available | Deferred |
 | Containerization | Docker | Planned |
 | CI/CD | GitHub Actions | Planned |
@@ -603,7 +603,7 @@ Defines `UserProfileRepository[F]` and its Doobie implementation. It provides fu
 
 ## 10.10 `UserProfileService.scala`
 
-Provides transport-independent profile use cases: idempotent default creation, private/public profile retrieval, and validated updates. Returns explicit `ProfileNotFound` and `InvalidUpdate` business errors. It validates that preferences and social links are JSON objects, matching the database contract. HTTP-specific lengths, URI rules, and request shape remain for Phase 6, as already specified in the API plan.
+Provides transport-independent profile use cases: idempotent default creation, private/public profile retrieval, and validated updates. Returns explicit `ProfileNotFound` and `InvalidUpdate` business errors. It validates that preferences and social links are JSON objects, matching the database contract, as well as approved text-length and HTTPS avatar URL constraints.
 
 ## 10.11 `UserProfileApi.scala`
 
@@ -780,7 +780,7 @@ Completed:
 
 ## Phase 6 — REST API Implementation
 
-**Status: In progress — public profile route implemented; `/me` awaits Phase 8 JWT**
+**Status: Complete**
 
 Implement the frontend-facing endpoints:
 
@@ -807,12 +807,10 @@ Completed so far:
 - Validated canonical UUID path values; malformed IDs return HTTP 400 and missing profiles return HTTP 404.
 - Mapped profile service errors to JSON HTTP responses.
 - Wired the profile service and repository into the server lifecycle.
-- Both `/me` routes return HTTP 501 pending JWT validation. This ordering was selected to avoid trusting an unauthenticated caller-supplied UUID.
-- Live HTTP checks against PostgreSQL verified a 200 public response that excluded preferences/social links, 400 for a malformed UUID, 404 for a missing profile, and 501 for both `/me` routes. The temporary database fixture was removed.
-- JSON codec checks verified valid update decoding, omitted nullable fields, invalid non-object JSON, and required JSON documents.
-- `sbt clean compile` succeeds. Temporary verification code was removed; no permanent tests were added.
-
-Before enabling authenticated `PUT /me`, finalize field-length and avatar URL validation requirements. Implement `/me` together with Phase 8 JWT validation so requests use a validated token subject.
+- Implemented `GET /api/v1/users/me` and `PUT /api/v1/users/me` using the verified JWT subject, with 401 for absent or invalid tokens.
+- Update validation enforces display name ≤100 characters, bio ≤500 characters, and absolute HTTPS avatar URLs ≤2048 characters without user information.
+- Live HTTP/PostgreSQL checks verified private and public response shapes, unauthenticated rejection, successful update, malformed update rejection, field-policy failures, and not-found/error mapping. The temporary profile fixture was removed.
+- `sbt compile` and the temporary security/route verification succeeded. Temporary verification code is removed; no permanent tests were added.
 
 ## Phase 7 — gRPC Server and Protobuf Contract
 
@@ -845,6 +843,8 @@ Share [src/main/protobuf/user_profile.proto](./src/main/protobuf/user_profile.pr
 
 ## Phase 8 — JWT Validation
 
+**Status: Complete**
+
 Objectives:
 
 - Validate JWT signatures using HS384.
@@ -854,6 +854,9 @@ Objectives:
 - Extract the UUID from the subject.
 - Reject malformed, expired, or invalid tokens.
 - Load signing secrets through secure configuration.
+- Require `JWT_SECRET` through environment configuration with a minimum of 48 UTF-8 bytes; do not hardcode the signing secret.
+- Verify expiration, reject future `iat`, require the configured issuer and audience, and accept only a canonical UUID subject.
+- Live verification covered valid tokens plus missing token, bad signature, wrong issuer/audience, expired or missing expiration, future `iat`/`nbf`, and malformed subject.
 
 Expected token compatibility:
 
@@ -1032,18 +1035,18 @@ As of 18 October 2026:
 | Profile domain and repository | Implemented and exercised against local PostgreSQL |
 | Application/business logic | Implemented; validation, not-found errors and use cases verified against local PostgreSQL |
 | Public profile REST endpoint | Implemented and verified against local PostgreSQL |
-| Authenticated `/me` REST endpoints | Deferred until Phase 8 JWT validation; currently return HTTP 501 |
-| REST request/response models | Implemented for the public response and update request |
+| Authenticated `/me` REST endpoints | Implemented and verified with HS384 JWT validation |
+| REST request/response models | Implemented for public and private responses and update requests |
 | gRPC Protobuf contract | Implemented at `src/main/protobuf/user_profile.proto`; ready to share with Auth Service |
 | gRPC server | Implemented with fs2-grpc/Netty and verified using a live local client |
-| JWT validation | Not started |
+| JWT validation | Implemented and verified |
 | Auth Service integration | Not started |
 | Automated tests | Deferred by explicit decision |
 | Docker and Kubernetes deployment | Not started |
 
 ## Immediate next action
 
-Complete Phase 8 JWT validation, then wire the validated subject into `GET/PUT /api/v1/users/me`. Before enabling updates, settle field-length and avatar URL policies.
+Begin Phase 9: integrate the Auth Service with profile provisioning over gRPC; retain the current idempotent provisioning behavior and define timeout/recovery handling for cross-service partial failures.
 
 ---
 
@@ -1051,6 +1054,6 @@ Complete Phase 8 JWT validation, then wire the validated subject into `GET/PUT /
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phase 7 is complete: `src/main/protobuf/user_profile.proto` defines CreateDefaultProfile, generated fs2-grpc bindings compile, the Netty server is resource-managed, and live gRPC checks verified creation, idempotent retries, UUID errors, and resource cleanup. The public Phase 6 route is implemented; `/api/v1/users/me` remains HTTP 501 until Phase 8 JWT validation supplies a trusted subject. Proceed with JWT validation and authenticated route integration. Settle profile field-length/avatar URL policies before enabling updates. Preserve Scala 3 indentation, do not add permanent tests yet, and verify each step."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8 are complete: Phase 7 defines `src/main/protobuf/user_profile.proto`, generated fs2-grpc bindings compile, the Netty server is resource-managed, and live gRPC checks verified creation, idempotent retries, UUID errors, and cleanup. Phase 6 public and JWT-protected `/me` REST routes are implemented and verified. JWT uses HS384 with environment-provided `JWT_SECRET`, the configured issuer/audience, expiration, and UUID subject. Proceed with Phase 9 Auth Service integration and gRPC profile provisioning. Preserve Scala 3 indentation, do not add permanent tests yet, and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.

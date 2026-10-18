@@ -11,12 +11,15 @@ final case class DatabaseConfig(
   password: String
 )
 
+final case class JwtConfig(secret: String)
+
 final case class UserServiceConfig(
   host: Host,
   port: Port,
   grpcPort: Int,
   appEnv: String,
-  database: DatabaseConfig
+  database: DatabaseConfig,
+  jwt: JwtConfig
 )
 
 object UserServiceConfig:
@@ -86,6 +89,18 @@ object UserServiceConfig:
           )
         }
 
+      val jwtSecret =
+        sys.env.get("JWT_SECRET").filter(_.nonEmpty).getOrElse {
+          throw new IllegalArgumentException(
+            "JWT_SECRET environment variable must be set"
+          )
+        }
+
+      require(
+        jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length >= 48,
+        "JWT_SECRET must contain at least 48 UTF-8 bytes for HS384"
+      )
+
       UserServiceConfig(
         host = host,
         port = port,
@@ -97,6 +112,7 @@ object UserServiceConfig:
           name = databaseName,
           username = databaseUsername,
           password = databasePassword
-        )
+        ),
+        jwt = JwtConfig(jwtSecret)
       )
     }

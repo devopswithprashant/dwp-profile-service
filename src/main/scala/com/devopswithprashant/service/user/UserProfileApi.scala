@@ -10,6 +10,17 @@ final case class PublicUserProfileResponse(
   createdAt: String
 )
 
+final case class UserProfileResponse(
+  userId: String,
+  displayName: Option[String],
+  bio: Option[String],
+  avatarUrl: Option[String],
+  preferences: Json,
+  socialLinks: Json,
+  createdAt: String,
+  updatedAt: String
+)
+
 object PublicUserProfileResponse:
   def fromProfile(profile: PublicUserProfile): PublicUserProfileResponse =
     PublicUserProfileResponse(
@@ -27,6 +38,32 @@ object PublicUserProfileResponse:
       "bio" -> response.bio.fold(Json.Null)(Json.fromString),
       "avatarUrl" -> response.avatarUrl.fold(Json.Null)(Json.fromString),
       "createdAt" -> Json.fromString(response.createdAt)
+    )
+  }
+
+object UserProfileResponse:
+  def fromProfile(profile: UserProfile): UserProfileResponse =
+    UserProfileResponse(
+      userId = profile.userId.toString,
+      displayName = profile.displayName,
+      bio = profile.bio,
+      avatarUrl = profile.avatarUrl,
+      preferences = profile.preferences,
+      socialLinks = profile.socialLinks,
+      createdAt = profile.createdAt.toString,
+      updatedAt = profile.updatedAt.toString
+    )
+
+  given Encoder[UserProfileResponse] = Encoder.instance { response =>
+    Json.obj(
+      "userId" -> Json.fromString(response.userId),
+      "displayName" -> response.displayName.fold(Json.Null)(Json.fromString),
+      "bio" -> response.bio.fold(Json.Null)(Json.fromString),
+      "avatarUrl" -> response.avatarUrl.fold(Json.Null)(Json.fromString),
+      "preferences" -> response.preferences,
+      "socialLinks" -> response.socialLinks,
+      "createdAt" -> Json.fromString(response.createdAt),
+      "updatedAt" -> Json.fromString(response.updatedAt)
     )
   }
 

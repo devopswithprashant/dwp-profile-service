@@ -17,8 +17,11 @@ object DwpuserserviceServer:
               val profileRepository =
                 new DoobieUserProfileRepository[F](transactor)
               val profileService = new UserProfileService[F](profileRepository)
+              val jwtAuthenticator = new JwtAuthenticator[F](config.jwt)
               val httpApp =
-                DwpuserserviceRoutes.routes[F](profileService).orNotFound
+                DwpuserserviceRoutes
+                  .routes[F](profileService, jwtAuthenticator)
+                  .orNotFound
               val finalHttpApp = Logger.httpApp(true, true)(httpApp)
               UserProfileGrpcServer
                 .resource[F](config.grpcPort, profileService)

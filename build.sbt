@@ -25,6 +25,7 @@ lazy val root = (project in file("."))
       "org.flywaydb"    %  "flyway-database-postgresql" % FlywayVersion,
       "org.typelevel"   %% "fs2-grpc-runtime"     % "3.1.2",
       "io.grpc"         %  "grpc-netty-shaded"    % scalapb.compiler.Version.grpcJavaVersion,
+      "com.auth0"       %  "java-jwt"             % "4.6.2",
       "org.scalameta"   %% "munit"               % MunitVersion           % Test,
       "org.typelevel"   %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
