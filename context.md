@@ -868,7 +868,17 @@ Do not hardcode the signing secret.
 
 ## Phase 9 — Auth Service Integration
 
-Objectives:
+**User Service status: Complete at the gRPC contract/server boundary. No further User Service implementation is currently required for the planned synchronous provisioning flow.**
+
+The Auth Service implementation is owned by its Kotlin repository. The Auth
+Service should generate a client from this service's shared Protobuf contract
+and call it after the Auth identity transaction commits. Auth-side retries,
+timeouts, registration behavior, and recovery belong in the Auth Service.
+Changes to this repository are needed only if implementation reveals a
+User-Service-side contract or operational requirement, such as gRPC
+authentication or TLS.
+
+Auth Service implementation objectives:
 
 - Integrate the Kotlin Auth Service with the User Service gRPC API.
 - Generate and consume compatible Protobuf client stubs.
@@ -883,7 +893,7 @@ Because the services use separate databases, provisioning must not be treated as
 
 ## Phase 10 — Unit and Integration Testing
 
-**Status: Implemented for current User Service behavior; extend Auth Service integration coverage when Phase 9 is implemented.**
+**User Service status: Implemented and verified for the behavior in this repository.**
 
 The business logic and User Service API are implemented. Automated tests now cover the implemented behavior:
 
@@ -897,7 +907,11 @@ The business logic and User Service API are implemented. Automated tests now cov
 
 Scoverage enforces at least 90% total statement coverage. Generated ScalaPB/protobuf classes are excluded because they are generated code, not project-authored behavior. The latest clean run measured **90.55% statement coverage** and **92.68% branch coverage** for handwritten production code. Commands: `sbt test` and `sbt clean coverage test coverageReport`.
 
-Auth Service integration and its cross-service failure/recovery behavior are not implemented in this repository yet; add those cases after Phase 9 is implemented.
+Cross-service provisioning and its failure/recovery behavior are Auth Service
+responsibilities and are not part of this repository's test coverage. Add
+provisioning client and registration/recovery tests in the Auth Service
+repository when that integration is implemented; no Auth integration tests are
+pending in this User Service repository.
 
 ## Phase 11 — Logging, Error Handling, and Observability
 
@@ -1035,13 +1049,14 @@ As of 18 October 2026:
 | gRPC Protobuf contract | Implemented at `src/main/protobuf/user_profile.proto`; ready to share with Auth Service |
 | gRPC server | Implemented with fs2-grpc/Netty and verified using a live local client |
 | JWT validation | Implemented and verified |
-| Auth Service integration | Not started |
-| Automated tests | 47 tests; 90.55% statement and 92.68% branch coverage for handwritten production code; Phase 9 Auth integration tests pending |
+| User Service provisioning gRPC contract/server | Complete; Auth Service can integrate against the shared contract |
+| Auth Service gRPC client/registration integration | Owned by the separate Auth Service repository; not User Service work |
+| Automated tests | 47 tests; 90.55% statement and 92.68% branch coverage for handwritten production code |
 | Docker and Kubernetes deployment | Not started |
 
 ## Immediate next action
 
-Begin Phase 9: integrate the Auth Service with profile provisioning over gRPC; retain the current idempotent provisioning behavior and define timeout/recovery handling for cross-service partial failures. Use [context-for-auth.md](./context-for-auth.md) as the Auth Service implementation handoff.
+For work in this repository, proceed to Phase 11. Implement Phase 9 in the Auth Service repository using [context-for-auth.md](./context-for-auth.md); return here only if that work requires a change to the User Service contract or server.
 
 ---
 
@@ -1049,6 +1064,6 @@ Begin Phase 9: integrate the Auth Service with profile provisioning over gRPC; r
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8 are complete. Phase 7 defines `src/main/protobuf/user_profile.proto`, generated fs2-grpc bindings compile, and the resource-managed gRPC server has unit/network coverage. Phase 6 public and JWT-protected `/me` REST routes are implemented and covered. The permanent Phase 10 suite currently has 47 tests and passes the enforced 90% statement-coverage gate (latest: 90.55% statements, 92.68% branches), excluding generated protobuf sources. Proceed with Phase 9 Auth Service integration and provisioning. Resolve its recovery policy before implementing failure behavior, and add Auth integration tests when that code is present. Preserve Scala 3 indentation and verify each step."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8 and Phase 10 are complete for the behavior in this repository. Phase 7 defines `src/main/protobuf/user_profile.proto`, generated fs2-grpc bindings compile, and the resource-managed gRPC server is verified. Phase 6 public and JWT-protected `/me` REST routes are implemented and covered. The permanent Phase 10 suite has 47 tests and passes the enforced 90% statement-coverage gate (latest: 90.55% statements, 92.68% branches), excluding generated protobuf sources. The User Service's Phase 9 contribution is complete at the shared gRPC contract/server boundary; implement the provisioning client, registration behavior, and recovery in the separate Auth Service repository using `context-for-auth.md`. Return to this repository only if Auth integration requires a service contract/server change. Continue User Service work with Phase 11. Preserve Scala 3 indentation and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.
