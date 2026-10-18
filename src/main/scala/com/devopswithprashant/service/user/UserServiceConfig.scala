@@ -25,94 +25,97 @@ final case class UserServiceConfig(
 object UserServiceConfig:
 
   def load[F[_]: Sync]: F[UserServiceConfig] =
-    Sync[F].delay {
-      val hostValue =
-        sys.env.getOrElse("SERVER_HOST", "0.0.0.0")
+    Sync[F].delay(fromEnvironment(sys.env))
 
-      val portValue =
-        sys.env.getOrElse("SERVER_PORT", "8080")
+  private[user] def fromEnvironment(
+    environment: Map[String, String]
+  ): UserServiceConfig =
+    val hostValue =
+      environment.getOrElse("SERVER_HOST", "0.0.0.0")
 
-      val appEnv =
-        sys.env.getOrElse("APP_ENV", "development")
+    val portValue =
+      environment.getOrElse("SERVER_PORT", "8080")
 
-      val host =
-        Host.fromString(hostValue).getOrElse {
-          throw new IllegalArgumentException(
-            s"Invalid SERVER_HOST value: '$hostValue'"
-          )
-        }
+    val appEnv =
+      environment.getOrElse("APP_ENV", "development")
 
-      val port =
-        Port.fromString(portValue).getOrElse {
-          throw new IllegalArgumentException(
-            s"Invalid SERVER_PORT value: '$portValue'"
-          )
-        }
+    val host =
+      Host.fromString(hostValue).getOrElse {
+        throw new IllegalArgumentException(
+          s"Invalid SERVER_HOST value: '$hostValue'"
+        )
+      }
 
-      val grpcPortValue =
-        sys.env.getOrElse("GRPC_PORT", "9090")
+    val port =
+      Port.fromString(portValue).getOrElse {
+        throw new IllegalArgumentException(
+          s"Invalid SERVER_PORT value: '$portValue'"
+        )
+      }
 
-      val grpcPort =
-        grpcPortValue.toIntOption.filter(p => p >= 1 && p <= 65535).getOrElse {
-          throw new IllegalArgumentException(
-            s"Invalid GRPC_PORT value: '$grpcPortValue'"
-          )
-        }
+    val grpcPortValue =
+      environment.getOrElse("GRPC_PORT", "9090")
 
-      val databaseHost =
-        sys.env.getOrElse("DB_HOST", "localhost")
+    val grpcPort =
+      grpcPortValue.toIntOption.filter(p => p >= 1 && p <= 65535).getOrElse {
+        throw new IllegalArgumentException(
+          s"Invalid GRPC_PORT value: '$grpcPortValue'"
+        )
+      }
 
-      val databasePortValue =
-        sys.env.getOrElse("DB_PORT", "5432")
+    val databaseHost =
+      environment.getOrElse("DB_HOST", "localhost")
 
-      val databasePort =
-        databasePortValue.toIntOption.filter(p => p >= 1 && p <= 65535).getOrElse {
-          throw new IllegalArgumentException(
-            s"Invalid DB_PORT value: '$databasePortValue'"
-          )
-        }
+    val databasePortValue =
+      environment.getOrElse("DB_PORT", "5432")
 
-      val databaseName =
-        sys.env.getOrElse("DB_NAME", "profiledb")
+    val databasePort =
+      databasePortValue.toIntOption.filter(p => p >= 1 && p <= 65535).getOrElse {
+        throw new IllegalArgumentException(
+          s"Invalid DB_PORT value: '$databasePortValue'"
+        )
+      }
 
-      val databaseUsername =
-        sys.env.get("DB_USER").filter(_.nonEmpty).getOrElse {
-          throw new IllegalArgumentException(
-            "DB_USER environment variable must be set"
-          )
-        }
+    val databaseName =
+      environment.getOrElse("DB_NAME", "profiledb")
 
-      val databasePassword =
-        sys.env.get("DB_PASSWORD").filter(_.nonEmpty).getOrElse {
-          throw new IllegalArgumentException(
-            "DB_PASSWORD environment variable must be set"
-          )
-        }
+    val databaseUsername =
+      environment.get("DB_USER").filter(_.nonEmpty).getOrElse {
+        throw new IllegalArgumentException(
+          "DB_USER environment variable must be set"
+        )
+      }
 
-      val jwtSecret =
-        sys.env.get("JWT_SECRET").filter(_.nonEmpty).getOrElse {
-          throw new IllegalArgumentException(
-            "JWT_SECRET environment variable must be set"
-          )
-        }
+    val databasePassword =
+      environment.get("DB_PASSWORD").filter(_.nonEmpty).getOrElse {
+        throw new IllegalArgumentException(
+          "DB_PASSWORD environment variable must be set"
+        )
+      }
 
-      require(
-        jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length >= 48,
-        "JWT_SECRET must contain at least 48 UTF-8 bytes for HS384"
-      )
+    val jwtSecret =
+      environment.get("JWT_SECRET").filter(_.nonEmpty).getOrElse {
+        throw new IllegalArgumentException(
+          "JWT_SECRET environment variable must be set"
+        )
+      }
 
-      UserServiceConfig(
-        host = host,
-        port = port,
-        grpcPort = grpcPort,
-        appEnv = appEnv,
-        database = DatabaseConfig(
-          host = databaseHost,
-          port = databasePort,
-          name = databaseName,
-          username = databaseUsername,
-          password = databasePassword
-        ),
-        jwt = JwtConfig(jwtSecret)
-      )
-    }
+    require(
+      jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length >= 48,
+      "JWT_SECRET must contain at least 48 UTF-8 bytes for HS384"
+    )
+
+    UserServiceConfig(
+      host = host,
+      port = port,
+      grpcPort = grpcPort,
+      appEnv = appEnv,
+      database = DatabaseConfig(
+        host = databaseHost,
+        port = databasePort,
+        name = databaseName,
+        username = databaseUsername,
+        password = databasePassword
+      ),
+      jwt = JwtConfig(jwtSecret)
+    )

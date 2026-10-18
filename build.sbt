@@ -28,7 +28,11 @@ lazy val root = (project in file("."))
       "com.auth0"       %  "java-jwt"             % "4.6.2",
       "org.scalameta"   %% "munit"               % MunitVersion           % Test,
       "org.typelevel"   %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
+      "org.testcontainers" % "postgresql"        % "1.20.6"               % Test,
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
     ),
-    testFrameworks += new TestFramework("munit.Framework")
+    testFrameworks += new TestFramework("munit.Framework"),
+    coverageExcludedPackages := "com\\.devopswithprashant\\.user\\.v1\\.user_profile.*",
+    coverageMinimumStmtTotal := 90,
+    coverageFailOnMinimum := true
   )

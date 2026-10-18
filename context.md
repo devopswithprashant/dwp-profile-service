@@ -6,8 +6,8 @@
 **Project:** DevOps with Prashant — Microservices Cloud Platform  
 **Service:** User Service  
 **Language:** Scala 3  
-**Current development phase:** Phase 8 — JWT Validation
-**Current implementation status:** Phases 1–8 are implemented. Phase 6 public and authenticated REST routes and Phase 8 HS384 JWT validation are verified against local PostgreSQL. Phase 7 gRPC is implemented and exercised over a local gRPC channel.
+**Current development phase:** Phase 10 — Automated Testing
+**Current implementation status:** Phases 1–8 are implemented and verified. The current 47-test suite covers the User Service's implemented behavior at 90.55% statement coverage and 92.68% branch coverage, excluding generated ScalaPB code. Phase 9 Auth Service integration remains unimplemented; its tests must be added with that integration.
 
 ---
 
@@ -810,7 +810,7 @@ Completed so far:
 - Implemented `GET /api/v1/users/me` and `PUT /api/v1/users/me` using the verified JWT subject, with 401 for absent or invalid tokens.
 - Update validation enforces display name ≤100 characters, bio ≤500 characters, and absolute HTTPS avatar URLs ≤2048 characters without user information.
 - Live HTTP/PostgreSQL checks verified private and public response shapes, unauthenticated rejection, successful update, malformed update rejection, field-policy failures, and not-found/error mapping. The temporary profile fixture was removed.
-- `sbt compile` and the temporary security/route verification succeeded. Temporary verification code is removed; no permanent tests were added.
+- Authenticated route behavior is covered by the permanent Phase 10 route and JWT suites.
 
 ## Phase 7 — gRPC Server and Protobuf Contract
 
@@ -883,26 +883,21 @@ Because the services use separate databases, provisioning must not be treated as
 
 ## Phase 10 — Unit and Integration Testing
 
-**Explicit decision: Testing is deferred until the business logic and service implementation are complete.**
+**Status: Implemented for current User Service behavior; extend Auth Service integration coverage when Phase 9 is implemented.**
 
-Do not interrupt current development to create unit or integration tests.
+The business logic and User Service API are implemented. Automated tests now cover the implemented behavior:
 
-Once the implementation is complete, add automated tests for:
+- `UserProfileServiceSuite`: default creation, private/public lookup, not-found results, validation limits, Unicode code points, URL rules, JSON object validation, and persistence calls.
+- `UserProfileApiSuite`: public/private field allowlists, nullable fields, request decoding, required properties, and invalid JSON shapes.
+- `JwtAuthenticatorSuite`: valid tokens; missing, malformed, wrong-signature, wrong-issuer/audience, expired/missing-expiration, future-time, and invalid-subject cases.
+- `DwpuserserviceRoutesSuite`: health, public/private access, authorization challenge and rejection, malformed UUIDs and request bodies, successful updates, validation failures, not-found responses, and unknown routes.
+- `UserProfileGrpcServiceSuite` and `UserProfileGrpcServerSuite`: gRPC success, UUID validation, status mapping, server binding, and client/server invocation.
+- `PostgresIntegrationSuite`: PostgreSQL 15 Testcontainers integration for migrations, transactor connectivity, repository reads/updates, default creation, retry idempotency, missing records, and JSONB constraints.
+- `UserServiceConfigSuite`: environment defaults/overrides, invalid ports/host, required credentials, and UTF-8 JWT secret length.
 
-- Domain and business rules
-- Repository operations
-- Database integration
-- REST endpoints
-- JWT validation
-- gRPC operations
-- Auth Service integration
-- Error handling
-- Idempotency
-- Failure and recovery scenarios
+Scoverage enforces at least 90% total statement coverage. Generated ScalaPB/protobuf classes are excluded because they are generated code, not project-authored behavior. The latest clean run measured **90.55% statement coverage** and **92.68% branch coverage** for handwritten production code. Commands: `sbt test` and `sbt clean coverage test coverageReport`.
 
-MUnit and Cats Effect testing dependencies are already present in the project.
-
-Manual checks may still be used during implementation to verify that individual components work.
+Auth Service integration and its cross-service failure/recovery behavior are not implemented in this repository yet; add those cases after Phase 9 is implemented.
 
 ## Phase 11 — Logging, Error Handling, and Observability
 
@@ -1041,12 +1036,12 @@ As of 18 October 2026:
 | gRPC server | Implemented with fs2-grpc/Netty and verified using a live local client |
 | JWT validation | Implemented and verified |
 | Auth Service integration | Not started |
-| Automated tests | Deferred by explicit decision |
+| Automated tests | 47 tests; 90.55% statement and 92.68% branch coverage for handwritten production code; Phase 9 Auth integration tests pending |
 | Docker and Kubernetes deployment | Not started |
 
 ## Immediate next action
 
-Begin Phase 9: integrate the Auth Service with profile provisioning over gRPC; retain the current idempotent provisioning behavior and define timeout/recovery handling for cross-service partial failures.
+Begin Phase 9: integrate the Auth Service with profile provisioning over gRPC; retain the current idempotent provisioning behavior and define timeout/recovery handling for cross-service partial failures. Use [context-for-auth.md](./context-for-auth.md) as the Auth Service implementation handoff.
 
 ---
 
@@ -1054,6 +1049,6 @@ Begin Phase 9: integrate the Auth Service with profile provisioning over gRPC; r
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8 are complete: Phase 7 defines `src/main/protobuf/user_profile.proto`, generated fs2-grpc bindings compile, the Netty server is resource-managed, and live gRPC checks verified creation, idempotent retries, UUID errors, and cleanup. Phase 6 public and JWT-protected `/me` REST routes are implemented and verified. JWT uses HS384 with environment-provided `JWT_SECRET`, the configured issuer/audience, expiration, and UUID subject. Proceed with Phase 9 Auth Service integration and gRPC profile provisioning. Preserve Scala 3 indentation, do not add permanent tests yet, and verify each step."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8 are complete. Phase 7 defines `src/main/protobuf/user_profile.proto`, generated fs2-grpc bindings compile, and the resource-managed gRPC server has unit/network coverage. Phase 6 public and JWT-protected `/me` REST routes are implemented and covered. The permanent Phase 10 suite currently has 47 tests and passes the enforced 90% statement-coverage gate (latest: 90.55% statements, 92.68% branches), excluding generated protobuf sources. Proceed with Phase 9 Auth Service integration and provisioning. Resolve its recovery policy before implementing failure behavior, and add Auth integration tests when that code is present. Preserve Scala 3 indentation and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.
