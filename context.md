@@ -459,7 +459,8 @@ dwp-user-service/
                             ├── DatabaseTransactor.scala
                             ├── DatabaseMigrations.scala
                             ├── UserProfile.scala
-                            └── UserProfileRepository.scala
+                            ├── UserProfileRepository.scala
+                            └── UserProfileService.scala
         └── resources/
             └── db/
                 └── migration/
@@ -588,6 +589,10 @@ Defines the full `UserProfile` record, a `PublicUserProfile` projection that exc
 ## 10.9 `UserProfileRepository.scala`
 
 Defines `UserProfileRepository[F]` and its Doobie implementation. It provides full and public profile lookup, idempotent default-profile creation, and profile updates. Database operations use Doobie `ConnectionIO` and are kept separate from HTTP routing.
+
+## 10.10 `UserProfileService.scala`
+
+Provides transport-independent profile use cases: idempotent default creation, private/public profile retrieval, and validated updates. Returns explicit `ProfileNotFound` and `InvalidUpdate` business errors. It validates that preferences and social links are JSON objects, matching the database contract. HTTP-specific lengths, URI rules, and request shape remain for Phase 6, as already specified in the API plan.
 
 ---
 
@@ -723,6 +728,8 @@ Completed:
 
 ## Phase 5 — Application and Business Logic
 
+**Status: Complete**
+
 Objectives:
 
 - Implement profile creation rules.
@@ -733,6 +740,16 @@ Objectives:
 - Keep business logic independent of HTTP transport details.
 
 This phase should establish the core profile behavior before REST endpoints are fully integrated.
+
+Completed:
+
+- Added `UserProfileService` with default profile creation, full profile retrieval, public profile retrieval, and profile updates.
+- Preserved idempotent create behavior through the repository, so repeated provisioning does not replace customized profile data.
+- Added business errors for missing profiles and invalid updates, plus field-specific validation details.
+- Validated JSONB-backed preferences and social links as JSON objects before repository updates; invalid updates return a business error without writing to the database.
+- Kept application logic independent of HTTP routes. Request-specific field limits and avatar URI policy remain deferred to Phase 6 as the blueprint specifies.
+- Ran temporary live PostgreSQL checks for default creation, retrieval, public retrieval, invalid update/no-write behavior, valid update, idempotent retry, and missing-profile errors. The verification runner and temporary row were removed.
+- `sbt compile` succeeds. No permanent tests were added, per the existing project decision.
 
 ## Phase 6 — REST API Implementation
 
@@ -954,7 +971,7 @@ As of 18 October 2026:
 | Resource cleanup | Verified; Hikari pool shutdown completed on interruption |
 | Flyway migration | V1 applied and verified against local PostgreSQL 15.13 |
 | Profile domain and repository | Implemented and exercised against local PostgreSQL |
-| Business logic | Not started |
+| Application/business logic | Implemented; validation, not-found errors and use cases verified against local PostgreSQL |
 | REST profile APIs | Not started |
 | gRPC server | Not started |
 | JWT validation | Not started |
@@ -964,7 +981,7 @@ As of 18 October 2026:
 
 ## Immediate next action
 
-Proceed with Phase 5 by adding application/business logic around the repository. Define profile creation/update validation and business errors independently of HTTP, while preserving idempotent creation semantics.
+Proceed with Phase 6 by defining REST request/response models, transport-level field validation and error-to-HTTP mappings, then integrate the profile service with routes. Coordinate authenticated “me” routes with the JWT phase.
 
 ---
 
@@ -972,6 +989,6 @@ Proceed with Phase 5 by adding application/business logic around the repository.
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 4 is complete: profile domain and Doobie repository operations compile and have been exercised against local PostgreSQL, including idempotent creation, updates, public projection, and not-found behavior. Proceed with Phase 5 business logic. Preserve Scala 3 indentation style, do not add permanent unit or integration tests yet, and proceed one verified step at a time."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 5 is complete: the transport-independent profile service handles creation, retrieval, public projection, JSON-object validation, and not-found errors; behavior was exercised against local PostgreSQL. Proceed with Phase 6 REST models, input constraints, HTTP error mapping, and route integration. Coordinate authenticated routes with JWT validation. Preserve Scala 3 indentation style, do not add permanent unit or integration tests yet, and proceed one verified step at a time."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.
