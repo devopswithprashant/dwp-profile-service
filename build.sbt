@@ -3,6 +3,7 @@ val MunitVersion = "0.7.29"
 val LogbackVersion = "1.2.6"
 val MunitCatsEffectVersion = "1.0.6"
 val DoobieVersion = "1.0.0-RC12"
+val FlywayVersion = "13.10.3"
 
 lazy val root = (project in file("."))
   .settings(
@@ -18,6 +19,8 @@ lazy val root = (project in file("."))
       "org.tpolecat"    %% "doobie-core"         % DoobieVersion,
       "org.tpolecat"    %% "doobie-hikari"       % DoobieVersion,
       "org.tpolecat"    %% "doobie-postgres"     % DoobieVersion,
+      "org.flywaydb"    %  "flyway-core"         % FlywayVersion,
+      "org.flywaydb"    %  "flyway-database-postgresql" % FlywayVersion,
       "org.scalameta"   %% "munit"               % MunitVersion           % Test,
       "org.typelevel"   %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,

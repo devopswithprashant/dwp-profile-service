@@ -6,8 +6,8 @@
 **Project:** DevOps with Prashant — Microservices Cloud Platform  
 **Service:** User Service  
 **Language:** Scala 3  
-**Current development phase:** Phase 3 — Flyway and Database Schema  
-**Current implementation status:** Phase 2 is complete. The application connected to the local `profiledb` PostgreSQL database, successfully ran its startup `SELECT 1` check, served HTTP requests, and shut down the Hikari pool cleanly.
+**Current development phase:** Phase 4 — Domain Models and Repository Layer
+**Current implementation status:** Phase 3 is complete. Flyway V1 created and verified the approved `user_profiles` schema in local `profiledb`; repeat startup confirmed the migration is recognized as applied.
 
 ---
 
@@ -231,26 +231,26 @@ The local development database was created on `localhost` with role `profileuser
 
 The database is separate from the Auth Service database and the Blog Service database.
 
-## 5.2 Planned profile table
+## 5.2 Profile table
 
 The initial profile table will be named:
 
 `user_profiles`
 
-The following is the planned logical structure. The final SQL schema will be defined during the Flyway migration phase.
+The approved and migrated schema is:
 
 | Column | Purpose |
 |---|---|
-| `user_id` | UUID received from the Auth Service; primary identity reference |
-| `display_name` | Optional display name |
-| `bio` | Optional user biography |
-| `avatar_url` | Optional avatar URL |
-| `preferences` | JSONB document for user preferences |
-| `social_links` | JSONB document for social links |
-| `created_at` | Profile creation timestamp |
-| `updated_at` | Last profile update timestamp |
+| `user_id` | UUID received from the Auth Service; primary key and identity reference |
+| `display_name` | Nullable text display name |
+| `bio` | Nullable text biography |
+| `avatar_url` | Nullable text avatar URL |
+| `preferences` | Non-null JSONB object, default `{}` |
+| `social_links` | Non-null JSONB object, default `{}` |
+| `created_at` | Non-null `TIMESTAMPTZ`, defaults to `CURRENT_TIMESTAMP` |
+| `updated_at` | Non-null `TIMESTAMPTZ`, defaults to `CURRENT_TIMESTAMP`; updates must refresh it |
 
-The exact JSON structure, constraints, defaults, indexes, and timestamp handling will be finalized when the schema is implemented.
+Both JSONB columns have database checks requiring a JSON object. The primary key provides the initial index; additional indexes are deferred until query patterns justify them.
 
 ### Important database rule
 
@@ -397,7 +397,7 @@ A future migration to asymmetric signing may be considered separately, but it is
 | SQL access | Doobie | Startup query verified |
 | Connection pooling | HikariCP | Transactor integrated; resource cleanup verified |
 | Database | PostgreSQL | Local `profiledb` connection verified |
-| Database migrations | Flyway | Planned |
+| Database migrations | Flyway 13.10.3 | V1 applied and verified |
 | Internal RPC | gRPC | Planned |
 | RPC contract | Protobuf | Planned |
 | JWT validation | Compatible with Auth Service HS384 tokens | Planned |
@@ -456,7 +456,12 @@ dwp-user-service/
                             ├── DwpuserserviceServer.scala
                             ├── DwpuserserviceRoutes.scala
                             ├── UserServiceConfig.scala
-                            └── DatabaseTransactor.scala
+                            ├── DatabaseTransactor.scala
+                            └── DatabaseMigrations.scala
+        └── resources/
+            └── db/
+                └── migration/
+                    └── V1__Create_user_profiles.sql
 ```
 
 The exact current contents of the files should be inspected before future modifications.
@@ -488,7 +493,7 @@ Responsible for:
 - Starting the Ember server
 - Managing the server lifecycle
 
-The server initializes the transactor from `config.database`, executes `SELECT 1` before starting the HTTP server, and scopes the transactor with `Resource.use`.
+The server loads configuration, applies Flyway migrations, initializes the transactor from `config.database`, executes `SELECT 1`, and only then starts the HTTP server. The transactor is scoped with `Resource.use`.
 
 ## 10.3 `DwpuserserviceRoutes.scala`
 
@@ -541,7 +546,7 @@ Database credentials must not be committed to source control or pasted into chat
 
 ## 10.5 `DatabaseTransactor.scala`
 
-Current user-provided implementation:
+Current implementation:
 
 ```scala
 package com.devopswithprashant.service.user
@@ -564,7 +569,15 @@ object DatabaseTransactor:
 
 This code compiled after correcting the Doobie dependency coordinates and version.
 
-Actual PostgreSQL connectivity has not yet been verified.
+The transactor successfully connected to local PostgreSQL during Phase 2 verification.
+
+## 10.6 `DatabaseMigrations.scala`
+
+Applies versioned migrations from `classpath:db/migration` to the `public` schema before the transactor and HTTP server start. Flyway failures propagate and prevent the service from starting.
+
+## 10.7 `V1__Create_user_profiles.sql`
+
+Creates `user_profiles` with a UUID primary key, optional profile fields, JSONB object columns and checks, and timezone-aware creation/update timestamps. Applied and verified against local PostgreSQL 15.13.
 
 ---
 
@@ -628,9 +641,11 @@ Completed:
 - `GET /health` returned HTTP 200 and an unknown route returned HTTP 404 while the database-backed service was running.
 - Graceful interruption stopped the HTTP server and logged `HikariPool-1 - Shutdown completed`.
 
-Phase 2 database connectivity and resource cleanup are verified against the local PostgreSQL instance. No schema migrations have been applied.
+Phase 2 database connectivity and resource cleanup were verified against the local PostgreSQL instance before migration support was added.
 
 ## Phase 3 — Flyway and Database Schema
+
+**Status: Complete**
 
 Objectives:
 
@@ -645,7 +660,21 @@ The initial migration should be versioned, for example:
 
 `V1__Create_user_profiles.sql`
 
-The final SQL schema must be designed and reviewed before applying it.
+The final SQL schema was designed and reviewed before applying it.
+
+Completed:
+
+- Reviewed and approved the schema before applying it.
+- Added Flyway 13.10.3 Core and PostgreSQL module dependencies.
+- Added `DatabaseMigrations`, which applies classpath migrations to the `public` schema before transactor initialization and HTTP startup.
+- Added `V1__Create_user_profiles.sql` with the approved columns, defaults, primary key, JSON-object checks, and timestamp fields.
+- Ran the application against local PostgreSQL 15.13 and successfully applied Flyway version 1.
+- Queried PostgreSQL metadata to verify columns, nullability, defaults, constraints, primary-key index, and the successful Flyway history entry.
+- Restarted the application; Flyway validated the applied migration and reported that the schema was up to date without rerunning it.
+- Confirmed the health endpoint returned HTTP 200 after migration startup and the Hikari pool shut down cleanly.
+- `sbt clean compile` succeeds with the Flyway dependencies.
+
+`updated_at` receives its initial value from the database default. Profile update operations must explicitly set `updated_at = CURRENT_TIMESTAMP`.
 
 ## Phase 4 — Domain Models and Repository Layer
 
@@ -899,7 +928,7 @@ As of 18 October 2026:
 | Latest server compilation | Successful with `sbt clean compile` |
 | PostgreSQL connectivity | Verified against local `profiledb` on `localhost:5432` |
 | Resource cleanup | Verified; Hikari pool shutdown completed on interruption |
-| Flyway migration | Not started |
+| Flyway migration | V1 applied and verified against local PostgreSQL 15.13 |
 | Profile domain and repository | Not started |
 | Business logic | Not started |
 | REST profile APIs | Not started |
@@ -911,7 +940,7 @@ As of 18 October 2026:
 
 ## Immediate next action
 
-Proceed with Phase 3 by reviewing and finalizing the `user_profiles` schema, then add and validate a Flyway migration against `profiledb`. No migration has been run yet.
+Proceed with Phase 4 by defining the profile domain model and Doobie repository operations against the migrated `user_profiles` table. Update operations must maintain `updated_at`.
 
 ---
 
@@ -919,6 +948,6 @@ Proceed with Phase 3 by reviewing and finalizing the `user_profiles` schema, the
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 2 is complete: the app connected to local `profiledb` with Doobie, passed startup `SELECT 1`, served HTTP health/404 checks, and released the Hikari pool on shutdown. Proceed with Phase 3 by reviewing the schema before creating or applying Flyway migrations. Preserve Scala 3 indentation style, do not introduce unit or integration tests yet, and proceed one verified step at a time."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 3 is complete: Flyway V1 created and verified `user_profiles` in local `profiledb`, repeat startup found the schema up to date, and the service remained healthy. Proceed with Phase 4 by defining profile domain and Doobie repository operations. Preserve Scala 3 indentation style, do not introduce unit or integration tests yet, and proceed one verified step at a time."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.
