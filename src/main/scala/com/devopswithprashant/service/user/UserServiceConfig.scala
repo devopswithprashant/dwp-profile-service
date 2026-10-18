@@ -14,6 +14,7 @@ final case class DatabaseConfig(
 final case class UserServiceConfig(
   host: Host,
   port: Port,
+  grpcPort: Int,
   appEnv: String,
   database: DatabaseConfig
 )
@@ -42,6 +43,16 @@ object UserServiceConfig:
         Port.fromString(portValue).getOrElse {
           throw new IllegalArgumentException(
             s"Invalid SERVER_PORT value: '$portValue'"
+          )
+        }
+
+      val grpcPortValue =
+        sys.env.getOrElse("GRPC_PORT", "9090")
+
+      val grpcPort =
+        grpcPortValue.toIntOption.filter(p => p >= 1 && p <= 65535).getOrElse {
+          throw new IllegalArgumentException(
+            s"Invalid GRPC_PORT value: '$grpcPortValue'"
           )
         }
 
@@ -78,6 +89,7 @@ object UserServiceConfig:
       UserServiceConfig(
         host = host,
         port = port,
+        grpcPort = grpcPort,
         appEnv = appEnv,
         database = DatabaseConfig(
           host = databaseHost,

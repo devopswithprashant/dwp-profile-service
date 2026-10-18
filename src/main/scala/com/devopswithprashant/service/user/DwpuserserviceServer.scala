@@ -14,15 +14,23 @@ object DwpuserserviceServer:
         DatabaseTransactor.create[F](config.database).use { transactor =>
           sql"SELECT 1".query[Int].unique.transact(transactor).void *>
             {
-              val httpApp = DwpuserserviceRoutes.routes[F].orNotFound
+              val profileRepository =
+                new DoobieUserProfileRepository[F](transactor)
+              val profileService = new UserProfileService[F](profileRepository)
+              val httpApp =
+                DwpuserserviceRoutes.routes[F](profileService).orNotFound
               val finalHttpApp = Logger.httpApp(true, true)(httpApp)
-              EmberServerBuilder
-                .default[F]
-                .withHost(config.host)
-                .withPort(config.port)
-                .withHttpApp(finalHttpApp)
-                .build
-                .useForever
+              UserProfileGrpcServer
+                .resource[F](config.grpcPort, profileService)
+                .use { _ =>
+                  EmberServerBuilder
+                    .default[F]
+                    .withHost(config.host)
+                    .withPort(config.port)
+                    .withHttpApp(finalHttpApp)
+                    .build
+                    .useForever
+                }
             }
-          }
+        }
     }

@@ -6,8 +6,8 @@
 **Project:** DevOps with Prashant — Microservices Cloud Platform  
 **Service:** User Service  
 **Language:** Scala 3  
-**Current development phase:** Phase 5 — Application and Business Logic
-**Current implementation status:** Phase 4 is complete. The profile domain and Doobie repository operations are implemented, compile, and were exercised against local PostgreSQL.
+**Current development phase:** Phase 8 — JWT Validation
+**Current implementation status:** Phase 7 gRPC contract/server is implemented and exercised over a local gRPC channel. The public Phase 6 API is implemented; authenticated `/me` routes remain HTTP 501 until JWT validation supplies a trusted subject.
 
 ---
 
@@ -294,9 +294,13 @@ Planned endpoints:
 
 The `/health` endpoint is already implemented.
 
-The profile endpoints have not yet been implemented.
+`GET /api/v1/users/{userId}` is implemented. It accepts canonical UUIDs, returns only the public profile projection, returns HTTP 400 for malformed UUIDs, and returns HTTP 404 when the profile does not exist.
 
-The final API request and response contracts will be documented when the REST layer is developed.
+`GET /api/v1/users/me` and `PUT /api/v1/users/me` return HTTP 501 until Phase 8 JWT middleware can provide a validated subject UUID. Client-supplied identities must not be trusted.
+
+`UserProfileUpdateRequest` defines the update JSON contract: `preferences` and `socialLinks` are required JSON objects; omitted nullable string fields decode to `None` and therefore clear those fields on update. Field-length and avatar URL policies remain to be finalized before enabling the authenticated update route.
+
+The public profile response includes only the user UUID, display name, bio, avatar URL, and creation timestamp. Preferences and social links are excluded.
 
 ## 6.2 gRPC
 
@@ -460,7 +464,11 @@ dwp-user-service/
                             ├── DatabaseMigrations.scala
                             ├── UserProfile.scala
                             ├── UserProfileRepository.scala
-                            └── UserProfileService.scala
+                            ├── UserProfileService.scala
+                            ├── UserProfileApi.scala
+                            └── UserProfileGrpcService.scala
+        └── protobuf/
+            └── user_profile.proto
         └── resources/
             └── db/
                 └── migration/
@@ -542,10 +550,13 @@ Known defaults:
 | `DB_HOST` | `localhost` |
 | `DB_PORT` | `5432` |
 | `DB_NAME` | `profiledb` |
+| `GRPC_PORT` | `9090` |
 
 `DB_USER` and `DB_PASSWORD` are required by the current configuration implementation.
 
 Database credentials must not be committed to source control or pasted into chat.
+
+`GRPC_PORT` defaults to `9090` and must be between 1 and 65535.
 
 ## 10.5 `DatabaseTransactor.scala`
 
@@ -593,6 +604,22 @@ Defines `UserProfileRepository[F]` and its Doobie implementation. It provides fu
 ## 10.10 `UserProfileService.scala`
 
 Provides transport-independent profile use cases: idempotent default creation, private/public profile retrieval, and validated updates. Returns explicit `ProfileNotFound` and `InvalidUpdate` business errors. It validates that preferences and social links are JSON objects, matching the database contract. HTTP-specific lengths, URI rules, and request shape remain for Phase 6, as already specified in the API plan.
+
+## 10.11 `UserProfileApi.scala`
+
+Defines the public response encoder and profile update request decoder. The public response uses an explicit allowlist. The update decoder requires object-valued `preferences` and `socialLinks`; omitted nullable string fields decode to `None`.
+
+## 10.12 `DwpuserserviceRoutes.scala`
+
+Defines `/health` and `GET /api/v1/users/{userId}`. It validates canonical UUID path values and maps malformed identifiers to HTTP 400 and missing profiles to HTTP 404. Both `/me` routes explicitly return HTTP 501 until JWT validation is integrated.
+
+## 10.13 `user_profile.proto`
+
+Defines `dwp.userservice.v1.UserProfileService/CreateDefaultProfile`. Request and response each carry `user_id` as a UUID-formatted string. This file is the API contract to share with the Auth Service.
+
+## 10.14 `UserProfileGrpcService.scala`
+
+Implements the generated fs2-grpc service and resource-managed Netty server. It validates canonical UUID strings and delegates creation to the idempotent application service. Invalid IDs map to `INVALID_ARGUMENT`; SQL/database failures map to retryable `UNAVAILABLE`; other non-fatal failures map to `INTERNAL`. Callers should use bounded retries for `UNAVAILABLE` only.
 
 ---
 
@@ -753,6 +780,8 @@ Completed:
 
 ## Phase 6 — REST API Implementation
 
+**Status: In progress — public profile route implemented; `/me` awaits Phase 8 JWT**
+
 Implement the frontend-facing endpoints:
 
 - `GET /api/v1/users/me`
@@ -770,7 +799,24 @@ Objectives:
 
 Authentication middleware may be introduced in coordination with the JWT phase.
 
+Completed so far:
+
+- Added `PublicUserProfileResponse` with an explicit public-field encoder.
+- Added `UserProfileUpdateRequest` decoding. Preferences and social links must be JSON objects; omitted nullable string fields decode to `None`.
+- Implemented `GET /api/v1/users/{userId}` through the application service.
+- Validated canonical UUID path values; malformed IDs return HTTP 400 and missing profiles return HTTP 404.
+- Mapped profile service errors to JSON HTTP responses.
+- Wired the profile service and repository into the server lifecycle.
+- Both `/me` routes return HTTP 501 pending JWT validation. This ordering was selected to avoid trusting an unauthenticated caller-supplied UUID.
+- Live HTTP checks against PostgreSQL verified a 200 public response that excluded preferences/social links, 400 for a malformed UUID, 404 for a missing profile, and 501 for both `/me` routes. The temporary database fixture was removed.
+- JSON codec checks verified valid update decoding, omitted nullable fields, invalid non-object JSON, and required JSON documents.
+- `sbt clean compile` succeeds. Temporary verification code was removed; no permanent tests were added.
+
+Before enabling authenticated `PUT /me`, finalize field-length and avatar URL validation requirements. Implement `/me` together with Phase 8 JWT validation so requests use a validated token subject.
+
 ## Phase 7 — gRPC Server and Protobuf Contract
+
+**Status: Complete**
 
 Objectives:
 
@@ -783,6 +829,19 @@ Objectives:
 - Define error responses and retry behavior.
 
 The final Protobuf contract should be shared with the Auth Service implementation.
+
+Completed:
+
+- Added `src/main/protobuf/user_profile.proto` with the JVM-compatible `dwp.userservice.v1.UserProfileService` and `CreateDefaultProfile` request/response messages.
+- Added `sbt-fs2-grpc` 3.1.2 and the Scala 3 `fs2-grpc-runtime` dependency. Protobuf/ScalaPB and fs2-grpc bindings are generated and compiled.
+- Added `GRPC_PORT` configuration, defaulting to 9090, with port-range validation.
+- Implemented a Netty-backed, Cats Effect resource-managed gRPC server and integrated it into application startup/shutdown alongside HTTP.
+- Implemented `CreateDefaultProfile`, validating canonical UUID strings and delegating to idempotent creation. Existing customized profiles are preserved on retries.
+- Mapped malformed IDs to `INVALID_ARGUMENT`, SQL/database exceptions to retryable `UNAVAILABLE`, and other non-fatal failures to `INTERNAL`. Clients should apply bounded retries only for `UNAVAILABLE`.
+- Verified a live local gRPC client/server with PostgreSQL: initial and repeated creation succeeded, a customized display name was preserved, malformed UUID returned `INVALID_ARGUMENT`, and resource cleanup closed the pool. The temporary verifier and row were removed.
+- `sbt compile` succeeds with generated Protobuf code.
+
+Share [src/main/protobuf/user_profile.proto](./src/main/protobuf/user_profile.proto) with the Auth Service team as the contract. Provisioning still spans separate databases and is not atomic.
 
 ## Phase 8 — JWT Validation
 
@@ -972,8 +1031,11 @@ As of 18 October 2026:
 | Flyway migration | V1 applied and verified against local PostgreSQL 15.13 |
 | Profile domain and repository | Implemented and exercised against local PostgreSQL |
 | Application/business logic | Implemented; validation, not-found errors and use cases verified against local PostgreSQL |
-| REST profile APIs | Not started |
-| gRPC server | Not started |
+| Public profile REST endpoint | Implemented and verified against local PostgreSQL |
+| Authenticated `/me` REST endpoints | Deferred until Phase 8 JWT validation; currently return HTTP 501 |
+| REST request/response models | Implemented for the public response and update request |
+| gRPC Protobuf contract | Implemented at `src/main/protobuf/user_profile.proto`; ready to share with Auth Service |
+| gRPC server | Implemented with fs2-grpc/Netty and verified using a live local client |
 | JWT validation | Not started |
 | Auth Service integration | Not started |
 | Automated tests | Deferred by explicit decision |
@@ -981,7 +1043,7 @@ As of 18 October 2026:
 
 ## Immediate next action
 
-Proceed with Phase 6 by defining REST request/response models, transport-level field validation and error-to-HTTP mappings, then integrate the profile service with routes. Coordinate authenticated “me” routes with the JWT phase.
+Complete Phase 8 JWT validation, then wire the validated subject into `GET/PUT /api/v1/users/me`. Before enabling updates, settle field-length and avatar URL policies.
 
 ---
 
@@ -989,6 +1051,6 @@ Proceed with Phase 6 by defining REST request/response models, transport-level f
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 5 is complete: the transport-independent profile service handles creation, retrieval, public projection, JSON-object validation, and not-found errors; behavior was exercised against local PostgreSQL. Proceed with Phase 6 REST models, input constraints, HTTP error mapping, and route integration. Coordinate authenticated routes with JWT validation. Preserve Scala 3 indentation style, do not add permanent unit or integration tests yet, and proceed one verified step at a time."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phase 7 is complete: `src/main/protobuf/user_profile.proto` defines CreateDefaultProfile, generated fs2-grpc bindings compile, the Netty server is resource-managed, and live gRPC checks verified creation, idempotent retries, UUID errors, and resource cleanup. The public Phase 6 route is implemented; `/api/v1/users/me` remains HTTP 501 until Phase 8 JWT validation supplies a trusted subject. Proceed with JWT validation and authenticated route integration. Settle profile field-length/avatar URL policies before enabling updates. Preserve Scala 3 indentation, do not add permanent tests yet, and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.

@@ -6,6 +6,7 @@ val DoobieVersion = "1.0.0-RC12"
 val FlywayVersion = "13.10.3"
 
 lazy val root = (project in file("."))
+  .enablePlugins(Fs2Grpc)
   .settings(
     organization := "com.devopswithprashant",
     name := "dwp-user-service",
@@ -22,6 +23,8 @@ lazy val root = (project in file("."))
       "org.tpolecat"    %% "doobie-postgres-circe" % DoobieVersion,
       "org.flywaydb"    %  "flyway-core"         % FlywayVersion,
       "org.flywaydb"    %  "flyway-database-postgresql" % FlywayVersion,
+      "org.typelevel"   %% "fs2-grpc-runtime"     % "3.1.2",
+      "io.grpc"         %  "grpc-netty-shaded"    % scalapb.compiler.Version.grpcJavaVersion,
       "org.scalameta"   %% "munit"               % MunitVersion           % Test,
       "org.typelevel"   %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
