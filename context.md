@@ -406,10 +406,10 @@ A future migration to asymmetric signing may be considered separately, but it is
 | Internal RPC | gRPC | Planned |
 | RPC contract | Protobuf | Planned |
 | JWT validation | Compatible with Auth Service HS384 tokens | Implemented |
-| Unit/integration testing | MUnit and Cats Effect testing dependencies available | Deferred |
-| Containerization | Docker | Planned |
-| CI/CD | GitHub Actions | Planned |
-| Container registry | Amazon ECR | Planned |
+| Unit/integration testing | MUnit, Cats Effect, and Testcontainers | Implemented; 55 tests |
+| Containerization | Multi-stage Docker build; single assembly JAR and trimmed Java 21 runtime on non-root Distroless | Implemented |
+| CI/CD | GitHub Actions test, coverage, and Docker image validation | Implemented |
+| Container registry | Amazon ECR with GitHub OIDC image publishing | Implemented; account/region/role/repository configuration pending |
 | Runtime platform | Amazon EKS | Planned |
 | GitOps | Argo CD and Kubernetes manifests | Planned |
 
@@ -955,21 +955,34 @@ Completed:
   branch for handwritten production code. Generated ScalaPB code remains
   excluded. Run `sbt clean coverage test coverageReport`.
 
-## Phase 12 — Docker, CI/CD, and Kubernetes Deployment
+## Phase 12 — Docker, CI/CD, and ECR Publishing
 
 Objectives:
 
-- Create a production-appropriate Docker image.
-- Configure runtime environment variables.
-- Add GitHub Actions build and validation workflows.
-- Build and publish container images to Amazon ECR.
-- Deploy the service to Amazon EKS.
-- Integrate with the existing GitOps repository.
-- Use Argo CD for Kubernetes synchronization.
-- Configure health probes and service networking.
-- Integrate deployment with the existing environment promotion workflow.
+- Build an assembly JAR with sbt-assembly and link a Java 21 runtime containing
+  only the modules needed by the service. Run it on a non-root Distroless base;
+  build tools, source files, and sbt caches are excluded from the final image.
+- Configure service runtime values through environment variables; keep
+  database credentials and `JWT_SECRET` out of the image.
+- Run tests, the 90% statement-coverage gate, and a Docker image build in
+  GitHub Actions for pull requests and pushes to `main`.
+- Publish commit-SHA and `latest` image tags to Amazon ECR from `main` using
+  GitHub Actions OIDC rather than long-lived AWS credentials.
+- Document local Docker usage and required GitHub/AWS configuration in
+  [README.md](./README.md).
 
-The exact pipeline stages and deployment manifests will be finalized when the service is ready for deployment.
+Deployment configuration intentionally deferred at the user's request:
+
+- Kubernetes/EKS manifests, probes, services, and networking.
+- GitOps repository integration and Argo CD synchronization.
+- Environment promotion/deployment workflow.
+
+Before ECR publishing can succeed, configure the `AWS_REGION` and
+`ECR_REPOSITORY` GitHub variables, the `AWS_ROLE_TO_ASSUME` secret, the AWS
+role's OIDC trust and ECR push permissions, and create the target ECR
+repository. Replace example account/region values with the real deployment
+values. Ensure `/metrics` is restricted to the trusted Prometheus path when
+deployment networking is configured.
 
 ---
 
@@ -1081,11 +1094,18 @@ As of 18 October 2026:
 | Structured JSON logging | Implemented to stdout; ready for central ELK collection |
 | Prometheus metrics | Implemented at `/metrics`; restrict scrape access at network/gateway layer |
 | Liveness/readiness | `/health/live` and database-aware `/health` implemented |
-| Docker and Kubernetes deployment | Not started |
+| Docker image and CI validation | Verified; 137 MB non-root image starts, migrates PostgreSQL, and serves health/metrics |
+| ECR publishing workflow | Implemented; awaits AWS/GitHub configuration |
+| EKS, Kubernetes, GitOps, and Argo CD | Deferred by request |
 
 ## Immediate next action
 
-For work in this repository, proceed to Phase 12. Implement Auth-owned provisioning in the Auth Service repository using [context-for-auth.md](./context-for-auth.md); return here only if that work requires a change to the User Service contract or server.
+The Docker image and CI workflow are implemented and verified. Configure the
+documented AWS/GitHub settings before enabling ECR publishing. EKS/Kubernetes,
+GitOps, and Argo CD are deferred. Implement Auth-owned provisioning in the
+Auth Service repository using [context-for-auth.md](./context-for-auth.md);
+return here only if that work requires a change to the User Service contract
+or server.
 
 ---
 
@@ -1093,6 +1113,6 @@ For work in this repository, proceed to Phase 12. Implement Auth-owned provision
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8, 10, and 11 are implemented and verified. Phase 7 defines `src/main/protobuf/user_profile.proto` and a resource-managed gRPC server. Phase 6 public and JWT-protected REST routes are covered. Phase 10 has 55 tests and currently measures 96.17% statement and 94.20% branch coverage for handwritten production sources, excluding generated protobuf code. Phase 11 emits structured JSON logs to stdout for ELK collection, exposes bounded-cardinality Prometheus metrics at `/metrics`, and provides `/health/live` plus database-aware `/health` readiness. Restrict `/metrics` to the Prometheus network path during deployment. The User Service's Phase 9 contribution is complete at the gRPC contract/server boundary; Auth-owned registration integration remains in the separate Auth Service repository using `context-for-auth.md`. Proceed with Phase 12 deployment work. Preserve Scala 3 indentation and verify each step."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8, 10, and 11 are implemented and verified. Phase 7 defines `src/main/protobuf/user_profile.proto` and a resource-managed gRPC server. Phase 6 public and JWT-protected REST routes are covered. Phase 10 has 55 tests and currently measures 96.17% statement and 94.20% branch coverage for handwritten production sources, excluding generated protobuf code. Phase 11 emits structured JSON logs to stdout for ELK collection, exposes bounded-cardinality Prometheus metrics at `/metrics`, and provides `/health/live` plus database-aware `/health` readiness. Phase 12 includes a multi-stage, non-root Distroless Docker image, GitHub Actions tests/coverage/image validation, and ECR publishing via OIDC. ECR account and role configuration is pending. Kubernetes/EKS, GitOps, and Argo CD deployment were deferred. Restrict `/metrics` to the Prometheus network path when deployment networking is configured. The User Service's Phase 9 contribution is complete at the gRPC contract/server boundary; Auth-owned registration integration remains in the separate Auth Service repository using `context-for-auth.md`. Preserve Scala 3 indentation and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.

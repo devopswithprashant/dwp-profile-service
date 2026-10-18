@@ -35,6 +35,23 @@ lazy val root = (project in file("."))
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
     ),
     testFrameworks += new TestFramework("munit.Framework"),
+    assembly / mainClass := Some(
+      "com.devopswithprashant.service.user.Main"
+    ),
+    assembly / assemblyJarName := "dwp-user-service.jar",
+    assembly / test := {},
+    assembly / assemblyMergeStrategy := {
+      case PathList("META-INF", "services", _ @ _*) =>
+        MergeStrategy.concat
+      case PathList("META-INF", _ @ _*) =>
+        MergeStrategy.discard
+      case "reference.conf" =>
+        MergeStrategy.concat
+      case "application.conf" =>
+        MergeStrategy.concat
+      case _ =>
+        MergeStrategy.first
+    },
     coverageExcludedPackages := "com\\.devopswithprashant\\.user\\.v1\\.user_profile.*",
     coverageMinimumStmtTotal := 90,
     coverageFailOnMinimum := true
