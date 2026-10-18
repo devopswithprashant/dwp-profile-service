@@ -1,30 +1,23 @@
 package com.devopswithprashant.service.user
 
 import cats.effect.Sync
-import cats.implicits._
+import io.circe.Json
 import org.http4s.HttpRoutes
+import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
 
 object DwpuserserviceRoutes:
 
-  def jokeRoutes[F[_]: Sync](J: Jokes[F]): HttpRoutes[F] =
-    val dsl = new Http4sDsl[F]{}
-    import dsl._
-    HttpRoutes.of[F] {
-      case GET -> Root / "joke" =>
-        for {
-          joke <- J.get
-          resp <- Ok(joke)
-        } yield resp
-    }
+  def routes[F[_]: Sync]: HttpRoutes[F] =
+    val dsl = new Http4sDsl[F] {}
+    import dsl.*
 
-  def helloWorldRoutes[F[_]: Sync](H: HelloWorld[F]): HttpRoutes[F] =
-    val dsl = new Http4sDsl[F]{}
-    import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "hello" / name =>
-        for {
-          greeting <- H.hello(HelloWorld.Name(name))
-          resp <- Ok(greeting)
-        } yield resp
+      case GET -> Root / "health" =>
+        val response = Json.obj(
+          "status" -> Json.fromString("UP"),
+          "service" -> Json.fromString("dwp-user-service")
+        )
+
+        Ok(response)
     }
