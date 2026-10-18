@@ -21,7 +21,9 @@ object DwpuserserviceRoutes:
 
   def routes[F[_]: Async](
     profileService: UserProfileService[F],
-    jwtAuthenticator: JwtAuthenticator[F]
+    jwtAuthenticator: JwtAuthenticator[F],
+    metrics: ServiceMetrics,
+    databaseHealth: F[Boolean]
   ): HttpRoutes[F] =
     val dsl = new Http4sDsl[F] {}
     import dsl.*
@@ -67,12 +69,38 @@ object DwpuserserviceRoutes:
 
     HttpRoutes.of[F] {
       case GET -> Root / "health" =>
-        val response = Json.obj(
-          "status" -> Json.fromString("UP"),
-          "service" -> Json.fromString("dwp-user-service")
+        databaseHealth.flatMap { databaseUp =>
+          metrics.recordDatabaseHealth(databaseUp)
+          val status = if databaseUp then Status.Ok else Status.ServiceUnavailable
+          val response = Json.obj(
+            "status" -> Json.fromString(if databaseUp then "UP" else "DOWN"),
+            "service" -> Json.fromString("dwp-user-service"),
+            "components" -> Json.obj(
+              "database" -> Json.fromString(if databaseUp then "UP" else "DOWN")
+            )
+          )
+          Response[F](status = status).withEntity(response).pure[F]
+        }
+
+      case GET -> Root / "health" / "live" =>
+        Ok(
+          Json.obj(
+            "status" -> Json.fromString("UP"),
+            "service" -> Json.fromString("dwp-user-service")
+          )
         )
 
-        Ok(response)
+      case GET -> Root / "metrics" =>
+        Async[F].delay {
+          Response[F](status = Status.Ok)
+            .withEntity(metrics.renderPrometheus)
+            .putHeaders(
+              Header.Raw(
+                CIString("Content-Type"),
+                "text/plain; version=0.0.4; charset=utf-8"
+              )
+            )
+        }
 
       case request @ GET -> Root / "api" / "v1" / "users" / "me" =>
         authenticatedUserId(request).flatMap {

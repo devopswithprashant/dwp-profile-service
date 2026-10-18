@@ -6,8 +6,8 @@
 **Project:** DevOps with Prashant — Microservices Cloud Platform  
 **Service:** User Service  
 **Language:** Scala 3  
-**Current development phase:** Phase 10 — Automated Testing
-**Current implementation status:** Phases 1–8 are implemented and verified. The current 47-test suite covers the User Service's implemented behavior at 90.55% statement coverage and 92.68% branch coverage, excluding generated ScalaPB code. Phase 9 Auth Service integration remains unimplemented; its tests must be added with that integration.
+**Current development phase:** Phase 11 — Logging, Error Handling, and Observability
+**Current implementation status:** Phases 1–8, 10, and 11 are implemented and verified. Phase 9's Auth-side client/registration work belongs in the separate Auth Service repository; the User Service provides the gRPC contract/server. The current 55-test suite covers handwritten User Service code at 96.17% statement and 94.20% branch coverage, excluding generated ScalaPB code.
 
 ---
 
@@ -281,7 +281,8 @@ Flyway will manage database schema changes through versioned SQL migrations.
 
 ## 6.1 REST APIs
 
-REST is the frontend-facing interface.
+REST is the frontend-facing interface. The UI integration handoff is documented
+in [context-for-ui.md](./context-for-ui.md).
 
 Planned endpoints:
 
@@ -915,6 +916,8 @@ pending in this User Service repository.
 
 ## Phase 11 — Logging, Error Handling, and Observability
 
+**Status: Implemented**
+
 Objectives:
 
 - Standardize application logs.
@@ -925,9 +928,32 @@ Objectives:
 - Introduce useful operational metrics.
 - Prepare the service for centralized monitoring and log aggregation.
 
-The existing `/health` endpoint currently verifies only that the HTTP application responds.
+Completed:
 
-Database health should be addressed separately.
+- Configured Logback to emit one structured JSON event per line to stdout using
+  `logstash-logback-encoder`, suitable for collection by the central ELK
+  pipeline. The application does not connect directly to Elasticsearch.
+- Added structured application-start, HTTP request, HTTP failure, and gRPC
+  request events. HTTP logs include method, normalized route, status, and
+  duration; they do not read or log request/response bodies, authorization
+  headers, query strings, or raw user IDs. gRPC logs include method/status but
+  not request payloads or exception messages.
+- Added `/health/live` for process liveness and changed `/health` to be the
+  readiness check, including a live `SELECT 1` database check. Readiness
+  responds 503 and reports database DOWN on failure.
+- Added `/metrics` in Prometheus text exposition format with bounded-cardinality
+  HTTP request totals and latency histogram, gRPC request totals by method and
+  status, and a database health gauge.
+- Metrics have no application-level authentication. Restrict access to
+  `/metrics` to the Prometheus scrape path using the service network policy,
+  ingress, or gateway; do not expose it publicly. Configure the existing
+  Prometheus/Grafana setup to scrape and visualize these metrics.
+- Added tests for readiness/liveness responses, metric exposition, normalized
+  route labels, thrown HTTP failures, gRPC metrics, and full application
+  startup/readiness with PostgreSQL Testcontainers.
+- Full suite passes: 55 tests; latest coverage is 96.17% statement and 94.20%
+  branch for handwritten production code. Generated ScalaPB code remains
+  excluded. Run `sbt clean coverage test coverageReport`.
 
 ## Phase 12 — Docker, CI/CD, and Kubernetes Deployment
 
@@ -1051,12 +1077,15 @@ As of 18 October 2026:
 | JWT validation | Implemented and verified |
 | User Service provisioning gRPC contract/server | Complete; Auth Service can integrate against the shared contract |
 | Auth Service gRPC client/registration integration | Owned by the separate Auth Service repository; not User Service work |
-| Automated tests | 47 tests; 90.55% statement and 92.68% branch coverage for handwritten production code |
+| Automated tests | 55 tests; 96.17% statement and 94.20% branch coverage for handwritten production code |
+| Structured JSON logging | Implemented to stdout; ready for central ELK collection |
+| Prometheus metrics | Implemented at `/metrics`; restrict scrape access at network/gateway layer |
+| Liveness/readiness | `/health/live` and database-aware `/health` implemented |
 | Docker and Kubernetes deployment | Not started |
 
 ## Immediate next action
 
-For work in this repository, proceed to Phase 11. Implement Phase 9 in the Auth Service repository using [context-for-auth.md](./context-for-auth.md); return here only if that work requires a change to the User Service contract or server.
+For work in this repository, proceed to Phase 12. Implement Auth-owned provisioning in the Auth Service repository using [context-for-auth.md](./context-for-auth.md); return here only if that work requires a change to the User Service contract or server.
 
 ---
 
@@ -1064,6 +1093,6 @@ For work in this repository, proceed to Phase 11. Implement Phase 9 in the Auth 
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8 and Phase 10 are complete for the behavior in this repository. Phase 7 defines `src/main/protobuf/user_profile.proto`, generated fs2-grpc bindings compile, and the resource-managed gRPC server is verified. Phase 6 public and JWT-protected `/me` REST routes are implemented and covered. The permanent Phase 10 suite has 47 tests and passes the enforced 90% statement-coverage gate (latest: 90.55% statements, 92.68% branches), excluding generated protobuf sources. The User Service's Phase 9 contribution is complete at the shared gRPC contract/server boundary; implement the provisioning client, registration behavior, and recovery in the separate Auth Service repository using `context-for-auth.md`. Return to this repository only if Auth integration requires a service contract/server change. Continue User Service work with Phase 11. Preserve Scala 3 indentation and verify each step."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8, 10, and 11 are implemented and verified. Phase 7 defines `src/main/protobuf/user_profile.proto` and a resource-managed gRPC server. Phase 6 public and JWT-protected REST routes are covered. Phase 10 has 55 tests and currently measures 96.17% statement and 94.20% branch coverage for handwritten production sources, excluding generated protobuf code. Phase 11 emits structured JSON logs to stdout for ELK collection, exposes bounded-cardinality Prometheus metrics at `/metrics`, and provides `/health/live` plus database-aware `/health` readiness. Restrict `/metrics` to the Prometheus network path during deployment. The User Service's Phase 9 contribution is complete at the gRPC contract/server boundary; Auth-owned registration integration remains in the separate Auth Service repository using `context-for-auth.md`. Proceed with Phase 12 deployment work. Preserve Scala 3 indentation and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.

@@ -13,18 +13,20 @@ class UserProfileGrpcServiceSuite extends CatsEffectSuite:
   import TestSupport.*
 
   private def service(
-    repository: UserProfileRepository[IO]
+    repository: UserProfileRepository[IO],
+    metrics: ServiceMetrics = new ServiceMetrics()
   ): UserProfileGrpcService[IO] =
-    new UserProfileGrpcService[IO](new UserProfileService[IO](repository))
+    new UserProfileGrpcService[IO](new UserProfileService[IO](repository), metrics)
 
   private def failureStatus(error: Throwable): Status.Code =
     Status.fromThrowable(error).getCode
 
   test("creates a profile and returns the canonical user UUID"):
     val userId = UUID.randomUUID()
+    val metrics = new ServiceMetrics()
     for
       repo <- repository()
-      response <- service(repo).createDefaultProfile(
+      response <- service(repo, metrics).createDefaultProfile(
         CreateDefaultProfileRequest(userId = userId.toString),
         new Metadata()
       )
@@ -32,13 +34,21 @@ class UserProfileGrpcServiceSuite extends CatsEffectSuite:
     yield
       assertEquals(response.userId, userId.toString)
       assert(stored.isDefined)
+      assert(
+        metrics.renderPrometheus.linesIterator.exists(line =>
+          line.startsWith("grpc_server_requests_total{") &&
+            line.contains("""status="OK"""") &&
+            line.endsWith(" 1.0")
+        )
+      )
 
   test("rejects malformed and noncanonical UUIDs with INVALID_ARGUMENT"):
     val requests = List("not-a-uuid", "00000000000000000000000000000000")
+    val metrics = new ServiceMetrics()
     for
       repo <- repository()
       statuses <- requests.traverse[IO, Option[Status.Code]] { userId =>
-        service(repo)
+        service(repo, metrics)
           .createDefaultProfile(
             CreateDefaultProfileRequest(userId = userId),
             new Metadata()
@@ -46,7 +56,15 @@ class UserProfileGrpcServiceSuite extends CatsEffectSuite:
           .attempt
           .map(_.left.toOption.map(failureStatus))
       }
-    yield assertEquals(statuses, List(Some(Status.Code.INVALID_ARGUMENT), Some(Status.Code.INVALID_ARGUMENT)))
+    yield
+      assertEquals(statuses, List(Some(Status.Code.INVALID_ARGUMENT), Some(Status.Code.INVALID_ARGUMENT)))
+      assert(
+        metrics.renderPrometheus.linesIterator.exists(line =>
+          line.startsWith("grpc_server_requests_total{") &&
+            line.contains("""status="INVALID_ARGUMENT"""") &&
+            line.endsWith(" 2.0")
+        )
+      )
 
   test("maps SQL exceptions to UNAVAILABLE"):
     val userId = UUID.randomUUID()

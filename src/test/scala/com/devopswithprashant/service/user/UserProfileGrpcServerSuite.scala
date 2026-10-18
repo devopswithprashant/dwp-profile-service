@@ -42,7 +42,7 @@ class UserProfileGrpcServerSuite extends CatsEffectSuite:
       repo <- repository()
       service = new UserProfileService[IO](repo)
       result <- UserProfileGrpcServer
-        .resource[IO](port, service)
+        .resource[IO](port, service, new ServiceMetrics())
         .use { _ =>
           channel(port).bracket { grpcChannel =>
             IO.blocking {

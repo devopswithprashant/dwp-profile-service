@@ -4,9 +4,14 @@ import cats.effect.IO
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.postgres.circe.jsonb.implicits.*
+import com.comcast.ip4s.*
 import io.circe.Json
+import java.net.ServerSocket
 import java.util.UUID
 import munit.CatsEffectSuite
+import org.http4s.{Method, Request, Status, Uri}
+import org.http4s.ember.client.EmberClientBuilder
+import org.http4s.implicits.*
 import org.testcontainers.containers.PostgreSQLContainer
 
 class PostgresIntegrationSuite extends CatsEffectSuite:
@@ -41,6 +46,13 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
         test(new DoobieUserProfileRepository[IO](transactor), transactor)
       }
 
+  private def unusedPort: IO[Int] =
+    IO.blocking {
+      val socket = new ServerSocket(0)
+      try socket.getLocalPort
+      finally socket.close()
+    }
+
   test("Flyway migration is repeatable and creates the profile table"):
     for
       first <- DatabaseMigrations.migrate[IO](config).attempt
@@ -64,6 +76,33 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
         assertEquals(value, 1)
       )
     }
+
+  test("application resource starts after migrations and serves database readiness"):
+    for
+      httpPort <- unusedPort
+      grpcPort <- unusedPort
+      host = Host.fromString("127.0.0.1").get
+      http = Port.fromInt(httpPort).get
+      serviceConfig = UserServiceConfig(
+        host,
+        http,
+        grpcPort,
+        "test",
+        config,
+        JwtConfig("test-only-secret-that-is-at-least-48-bytes-long!")
+      )
+      result <- DwpuserserviceServer
+        .serverResource[IO](serviceConfig)
+        .use { _ =>
+          EmberClientBuilder.default[IO].build.use { client =>
+            val request = Request[IO](
+              Method.GET,
+              Uri.unsafeFromString(s"http://127.0.0.1:$httpPort/health")
+            )
+            client.run(request).use(response => IO.pure(response.status))
+          }
+        }
+    yield assertEquals(result, Status.Ok)
 
   test("repository creates defaults and reads private and public profile projections"):
     val userId = UUID.randomUUID()

@@ -2,6 +2,7 @@ package com.devopswithprashant.service.user
 
 import cats.effect.IO
 import cats.syntax.all.*
+import cats.data.Kleisli
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.circe.Json
@@ -30,9 +31,18 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
       .withExpiresAt(Date.from(Instant.now().plusSeconds(300)))
       .sign(Algorithm.HMAC384(jwtSecret))
 
-  private def app(repository: UserProfileRepository[IO]): HttpApp[IO] =
+  private def app(
+    repository: UserProfileRepository[IO],
+    databaseHealth: IO[Boolean] = IO.pure(true),
+    metrics: ServiceMetrics = new ServiceMetrics()
+  ): HttpApp[IO] =
     DwpuserserviceRoutes
-      .routes[IO](new UserProfileService[IO](repository), authenticator)
+      .routes[IO](
+        new UserProfileService[IO](repository),
+        authenticator,
+        metrics,
+        databaseHealth
+      )
       .orNotFound
 
   private def request(
@@ -57,6 +67,112 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     yield
       assertEquals(response.status, Status.Ok)
       assertEquals(body.hcursor.get[String]("status"), Right("UP"))
+      assertEquals(
+        body.hcursor.downField("components").get[String]("database"),
+        Right("UP")
+      )
+
+  test("readiness health endpoint reports database outage and liveness stays up"):
+    for
+      repo <- repository()
+      service = app(repo, IO.pure(false))
+      ready <- service.run(request(Method.GET, uri"/health"))
+      readyBody <- ready.as[Json]
+      live <- service.run(request(Method.GET, uri"/health/live"))
+      liveBody <- live.as[Json]
+    yield
+      assertEquals(ready.status, Status.ServiceUnavailable)
+      assertEquals(readyBody.hcursor.get[String]("status"), Right("DOWN"))
+      assertEquals(
+        readyBody.hcursor.downField("components").get[String]("database"),
+        Right("DOWN")
+      )
+      assertEquals(live.status, Status.Ok)
+      assertEquals(liveBody.hcursor.get[String]("status"), Right("UP"))
+
+  test("metrics endpoint exposes Prometheus text format and database health gauge"):
+    val metrics = new ServiceMetrics()
+    for
+      repo <- repository()
+      service = app(repo, IO.pure(true), metrics)
+      _ <- service.run(request(Method.GET, uri"/health"))
+      response <- service.run(request(Method.GET, uri"/metrics"))
+      body <- response.as[String]
+    yield
+      assertEquals(response.status, Status.Ok)
+      assertEquals(
+        response.headers.get(CIString("Content-Type")).map(_.head.value),
+        Some("text/plain; version=0.0.4; charset=utf-8")
+      )
+      assert(body.contains("# HELP database_health"))
+      assert(body.contains("database_health 1.0"))
+
+  test("HTTP instrumentation records normalized routes and response status"):
+    val userId = UUID.randomUUID()
+    val metrics = new ServiceMetrics()
+    for
+      repo <- repository()
+      instrumented = HttpObservability.instrument(app(repo, metrics = metrics), metrics)
+      response <- instrumented.run(
+        request(
+          Method.GET,
+          Uri.unsafeFromString(s"/api/v1/users/$userId")
+        )
+      )
+      exposition = metrics.renderPrometheus
+    yield
+      assertEquals(response.status, Status.NotFound)
+      assert(exposition.contains("""route="/api/v1/users/{userId}""""))
+      assert(exposition.contains("""status="404""""))
+      assert(!exposition.contains(userId.toString))
+
+  test("HTTP instrumentation uses bounded route labels for service endpoints"):
+    val userId = UUID.randomUUID()
+    val metrics = new ServiceMetrics()
+    for
+      repo <- repository()
+      instrumented = HttpObservability.instrument(app(repo, metrics = metrics), metrics)
+      _ <- instrumented.run(request(Method.GET, uri"/health"))
+      _ <- instrumented.run(request(Method.GET, uri"/health/live"))
+      _ <- instrumented.run(request(Method.GET, uri"/metrics"))
+      _ <- instrumented.run(request(Method.GET, uri"/api/v1/users/me"))
+      _ <- instrumented.run(
+        request(
+          Method.GET,
+          Uri.unsafeFromString(s"/api/v1/users/$userId")
+        )
+      )
+      _ <- instrumented.run(request(Method.GET, uri"/unknown"))
+      exposition = metrics.renderPrometheus
+    yield
+      assert(exposition.contains("""route="/health""""))
+      assert(exposition.contains("""route="/health/live""""))
+      assert(exposition.contains("""route="/metrics""""))
+      assert(exposition.contains("""route="/api/v1/users/me""""))
+      assert(exposition.contains("""route="unmatched""""))
+      assert(!exposition.contains(userId.toString))
+
+  test("HTTP instrumentation records and rethrows unexpected application failures"):
+    val metrics = new ServiceMetrics()
+    val failingApp: HttpApp[IO] =
+      Kleisli((_: Request[IO]) =>
+        IO.raiseError[Response[IO]](
+          new IllegalStateException("sensitive failure detail")
+        )
+      )
+    val instrumented = HttpObservability.instrument(failingApp, metrics)
+    for
+      result <- instrumented.run(request(Method.GET, uri"/unknown")).attempt
+      exposition = metrics.renderPrometheus
+    yield
+      assert(result.left.toOption.exists(_.isInstanceOf[IllegalStateException]))
+      assert(
+        exposition.linesIterator.exists(line =>
+          line.startsWith("http_server_requests_total{") &&
+            line.contains("""status="500"""") &&
+            line.endsWith(" 1.0")
+        )
+      )
 
   test("public endpoint returns only allowlisted profile fields"):
     val userId = UUID.randomUUID()
