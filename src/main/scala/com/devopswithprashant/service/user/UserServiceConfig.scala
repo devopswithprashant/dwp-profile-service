@@ -59,7 +59,7 @@ object UserServiceConfig:
         }
 
       val databaseName =
-        sys.env.getOrElse("DB_NAME", "userdb")
+        sys.env.getOrElse("DB_NAME", "profiledb")
 
       val databaseUsername =
         sys.env.get("DB_USER").filter(_.nonEmpty).getOrElse {
@@ -88,4 +88,3 @@ object UserServiceConfig:
         )
       )
     }
-
