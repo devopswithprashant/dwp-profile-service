@@ -6,8 +6,8 @@
 **Project:** DevOps with Prashant — Microservices Cloud Platform  
 **Service:** User Service  
 **Language:** Scala 3  
-**Current development phase:** Phase 4 — Domain Models and Repository Layer
-**Current implementation status:** Phase 3 is complete. Flyway V1 created and verified the approved `user_profiles` schema in local `profiledb`; repeat startup confirmed the migration is recognized as applied.
+**Current development phase:** Phase 5 — Application and Business Logic
+**Current implementation status:** Phase 4 is complete. The profile domain and Doobie repository operations are implemented, compile, and were exercised against local PostgreSQL.
 
 ---
 
@@ -457,7 +457,9 @@ dwp-user-service/
                             ├── DwpuserserviceRoutes.scala
                             ├── UserServiceConfig.scala
                             ├── DatabaseTransactor.scala
-                            └── DatabaseMigrations.scala
+                            ├── DatabaseMigrations.scala
+                            ├── UserProfile.scala
+                            └── UserProfileRepository.scala
         └── resources/
             └── db/
                 └── migration/
@@ -579,6 +581,14 @@ Applies versioned migrations from `classpath:db/migration` to the `public` schem
 
 Creates `user_profiles` with a UUID primary key, optional profile fields, JSONB object columns and checks, and timezone-aware creation/update timestamps. Applied and verified against local PostgreSQL 15.13.
 
+## 10.8 `UserProfile.scala`
+
+Defines the full `UserProfile` record, a `PublicUserProfile` projection that excludes preferences and social links, and `UserProfileUpdate`. Update requests replace mutable fields; `None` clears a nullable field.
+
+## 10.9 `UserProfileRepository.scala`
+
+Defines `UserProfileRepository[F]` and its Doobie implementation. It provides full and public profile lookup, idempotent default-profile creation, and profile updates. Database operations use Doobie `ConnectionIO` and are kept separate from HTTP routing.
+
 ---
 
 # 11. Development Roadmap — All Phases
@@ -678,6 +688,8 @@ Completed:
 
 ## Phase 4 — Domain Models and Repository Layer
 
+**Status: Complete**
+
 Objectives:
 
 - Define the user profile domain model.
@@ -696,6 +708,18 @@ Expected logical operations include:
 - Retrieve public profile information.
 
 The exact package structure should be established based on the implementation rather than creating unnecessary abstractions prematurely.
+
+Completed:
+
+- Added `UserProfile` with UUID, nullable display name/bio/avatar URL, Circe JSON preferences/social links, and `OffsetDateTime` timestamps.
+- Added `PublicUserProfile` that excludes preferences and social links.
+- Added `UserProfileUpdate`; `None` clears nullable fields while JSON objects are replaced as a whole.
+- Added the `UserProfileRepository[F]` algebra and `DoobieUserProfileRepository` implementation.
+- Implemented profile lookup by UUID, a separate public projection query, idempotent default-profile creation using `ON CONFLICT DO NOTHING`, and updates that set `updated_at = CURRENT_TIMESTAMP`.
+- Duplicate default-profile creation returns the existing profile without overwriting customized values.
+- Added the Doobie PostgreSQL Circe module for typed JSONB mappings.
+- Exercised create/default JSON values, update and null clearing, idempotent retry after customization, public lookup, missing-profile lookup/update, and cleanup against local PostgreSQL. The temporary verification harness and row were removed.
+- `sbt compile` succeeds. No permanent tests were added, per the existing project decision.
 
 ## Phase 5 — Application and Business Logic
 
@@ -929,7 +953,7 @@ As of 18 October 2026:
 | PostgreSQL connectivity | Verified against local `profiledb` on `localhost:5432` |
 | Resource cleanup | Verified; Hikari pool shutdown completed on interruption |
 | Flyway migration | V1 applied and verified against local PostgreSQL 15.13 |
-| Profile domain and repository | Not started |
+| Profile domain and repository | Implemented and exercised against local PostgreSQL |
 | Business logic | Not started |
 | REST profile APIs | Not started |
 | gRPC server | Not started |
@@ -940,7 +964,7 @@ As of 18 October 2026:
 
 ## Immediate next action
 
-Proceed with Phase 4 by defining the profile domain model and Doobie repository operations against the migrated `user_profiles` table. Update operations must maintain `updated_at`.
+Proceed with Phase 5 by adding application/business logic around the repository. Define profile creation/update validation and business errors independently of HTTP, while preserving idempotent creation semantics.
 
 ---
 
@@ -948,6 +972,6 @@ Proceed with Phase 4 by defining the profile domain model and Doobie repository 
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 3 is complete: Flyway V1 created and verified `user_profiles` in local `profiledb`, repeat startup found the schema up to date, and the service remained healthy. Proceed with Phase 4 by defining profile domain and Doobie repository operations. Preserve Scala 3 indentation style, do not introduce unit or integration tests yet, and proceed one verified step at a time."
+"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify the current source files and exact implementation status. Phase 4 is complete: profile domain and Doobie repository operations compile and have been exercised against local PostgreSQL, including idempotent creation, updates, public projection, and not-found behavior. Proceed with Phase 5 business logic. Preserve Scala 3 indentation style, do not add permanent unit or integration tests yet, and proceed one verified step at a time."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.
