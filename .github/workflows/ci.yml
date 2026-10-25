@@ -18,6 +18,26 @@ jobs:
   validate:
     name: Test and build image
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: profiledb_test
+          POSTGRES_USER: profileuser_test
+          POSTGRES_PASSWORD: profiletestpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U profileuser_test -d profiledb_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PROFILE_TEST_DB_HOST: localhost
+      PROFILE_TEST_DB_PORT: 5432
+      PROFILE_TEST_DB_NAME: profiledb_test
+      PROFILE_TEST_DB_USER: profileuser_test
+      PROFILE_TEST_DB_PASSWORD: profiletestpassword
     steps:
       - name: Check out source
         uses: actions/checkout@v4

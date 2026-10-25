@@ -30,7 +30,6 @@ lazy val root = (project in file("."))
       "io.prometheus"   %  "simpleclient_common"  % "0.16.0",
       "org.scalameta"   %% "munit"               % MunitVersion           % Test,
       "org.typelevel"   %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
-      "org.testcontainers" % "postgresql"        % "1.20.6"               % Test,
       "net.logstash.logback" % "logstash-logback-encoder" % "6.6",
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
     ),

@@ -12,27 +12,30 @@ import munit.CatsEffectSuite
 import org.http4s.{Method, Request, Status, Uri}
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.implicits.*
-import org.testcontainers.containers.PostgreSQLContainer
 
 class PostgresIntegrationSuite extends CatsEffectSuite:
 
-  private val postgres = new PostgreSQLContainer("postgres:15-alpine")
-
-  override def beforeAll(): Unit =
-    super.beforeAll()
-    postgres.start()
-
-  override def afterAll(): Unit =
-    postgres.stop()
-    super.afterAll()
-
-  private def config =
+  private lazy val config =
+    val environment = sys.env
+    val portValue = environment.getOrElse("PROFILE_TEST_DB_PORT", "5432")
+    val port = portValue.toIntOption.filter(value => value >= 1 && value <= 65535)
+      .getOrElse {
+        throw new IllegalArgumentException(
+          s"PROFILE_TEST_DB_PORT must be a valid TCP port: '$portValue'"
+        )
+      }
+    val password = environment.get("PROFILE_TEST_DB_PASSWORD").filter(_.nonEmpty)
+      .getOrElse {
+        throw new IllegalStateException(
+          "PROFILE_TEST_DB_PASSWORD must be set to run PostgreSQL integration tests"
+        )
+      }
     DatabaseConfig(
-      host = postgres.getHost,
-      port = postgres.getFirstMappedPort,
-      name = postgres.getDatabaseName,
-      username = postgres.getUsername,
-      password = postgres.getPassword
+      host = environment.getOrElse("PROFILE_TEST_DB_HOST", "localhost"),
+      port = port,
+      name = environment.getOrElse("PROFILE_TEST_DB_NAME", "profiledb_test"),
+      username = environment.getOrElse("PROFILE_TEST_DB_USER", "profileuser_test"),
+      password = password
     )
 
   private def withRepository[A](

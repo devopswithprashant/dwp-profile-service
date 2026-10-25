@@ -8,10 +8,34 @@ JWT validation, structured JSON logs, and Prometheus metrics.
 Requires Java 21 and sbt 1.13.0.
 
 ```bash
+printf 'PostgreSQL test password: '
+read -s PROFILE_TEST_DB_PASSWORD
+printf '\n'
+export PROFILE_TEST_DB_PASSWORD
 sbt clean coverage test coverageReport
 ```
 
-The build enforces a minimum 90% statement coverage.
+The PostgreSQL integration suite connects directly to a dedicated local test
+database; it does not use Testcontainers. Set `PROFILE_TEST_DB_PASSWORD` to the
+password for `profileuser_test` before running the command. The test connection
+defaults to `localhost:5432`, database `profiledb_test`, and user
+`profileuser_test`; override these with `PROFILE_TEST_DB_HOST`,
+`PROFILE_TEST_DB_PORT`, `PROFILE_TEST_DB_NAME`, and `PROFILE_TEST_DB_USER` if
+needed. The test database must be dedicated to integration tests because the
+suite applies Flyway migrations and writes test profiles.
+
+Integration test database variables:
+
+| Variable | Required | Default |
+|---|---:|---|
+| `PROFILE_TEST_DB_HOST` | No | `localhost` |
+| `PROFILE_TEST_DB_PORT` | No | `5432` |
+| `PROFILE_TEST_DB_NAME` | No | `profiledb_test` |
+| `PROFILE_TEST_DB_USER` | No | `profileuser_test` |
+| `PROFILE_TEST_DB_PASSWORD` | Yes | — |
+
+The GitHub Actions workflow supplies its own PostgreSQL service for the test
+job. The build enforces a minimum 90% statement coverage.
 
 ## Build the Docker image
 
@@ -49,6 +73,10 @@ Linux, configure a host-gateway mapping or use the database container's
 reachable hostname. The database must accept connections from the container.
 
 ### Runtime configuration
+
+These variables configure the running service, including production. They are
+separate from the `PROFILE_TEST_DB_*` variables above; do not point the
+integration suite at the production database.
 
 | Variable | Required | Default |
 |---|---:|---|

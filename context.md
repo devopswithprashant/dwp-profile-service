@@ -408,7 +408,7 @@ A future migration to asymmetric signing may be considered separately, but it is
 | Internal RPC | gRPC | Planned |
 | RPC contract | Protobuf | Planned |
 | JWT validation | Compatible with Auth Service HS384 tokens | Implemented |
-| Unit/integration testing | MUnit, Cats Effect, and Testcontainers | Implemented; 55 tests |
+| Unit/integration testing | MUnit, Cats Effect, and direct PostgreSQL integration tests | Implemented |
 | Containerization | Multi-stage Docker build; single assembly JAR and trimmed Java 21 runtime on non-root Distroless | Implemented |
 | CI/CD | GitHub Actions test, coverage, and Docker image validation | Implemented |
 | Container registry | Amazon ECR with GitHub OIDC image publishing | Implemented; account/region/role/repository configuration pending |
@@ -905,7 +905,7 @@ The business logic and Profile Service API are implemented. Automated tests now 
 - `JwtAuthenticatorSuite`: valid tokens; missing, malformed, wrong-signature, wrong-issuer/audience, expired/missing-expiration, future-time, and invalid-subject cases.
 - `DwpProfileServiceRoutesSuite`: health, public/private access, authorization challenge and rejection, malformed UUIDs and request bodies, successful updates, validation failures, not-found responses, and unknown routes.
 - `ProfileGrpcServiceSuite` and `ProfileGrpcServerSuite`: gRPC success, UUID validation, status mapping, server binding, and client/server invocation.
-- `PostgresIntegrationSuite`: PostgreSQL 15 Testcontainers integration for migrations, transactor connectivity, repository reads/updates, default creation, retry idempotency, missing records, and JSONB constraints.
+- `PostgresIntegrationSuite`: direct PostgreSQL integration tests for migrations, transactor connectivity, repository reads/updates, default creation, retry idempotency, missing records, and JSONB constraints. Configure a dedicated test database with `PROFILE_TEST_DB_*` environment variables; no Testcontainers or Ryuk image is used.
 - `ProfileServiceConfigSuite`: environment defaults/overrides, invalid ports/host, required credentials, and UTF-8 JWT secret length.
 
 Scoverage enforces at least 90% total statement coverage. Generated ScalaPB/protobuf classes are excluded because they are generated code, not project-authored behavior. The latest clean run measured **90.55% statement coverage** and **92.68% branch coverage** for handwritten production code. Commands: `sbt test` and `sbt clean coverage test coverageReport`.
@@ -952,7 +952,7 @@ Completed:
   Prometheus/Grafana setup to scrape and visualize these metrics.
 - Added tests for readiness/liveness responses, metric exposition, normalized
   route labels, thrown HTTP failures, gRPC metrics, and full application
-  startup/readiness with PostgreSQL Testcontainers.
+  startup/readiness with PostgreSQL.
 - Full suite passes: 55 tests; latest coverage is 96.17% statement and 94.20%
   branch for handwritten production code. Generated ScalaPB code remains
   excluded. Run `sbt clean coverage test coverageReport`.
