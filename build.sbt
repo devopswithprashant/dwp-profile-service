@@ -9,7 +9,7 @@ lazy val root = (project in file("."))
   .enablePlugins(Fs2Grpc)
   .settings(
     organization := "com.devopswithprashant",
-    name := "dwp-user-service",
+    name := "dwp-profile-service",
     version := "0.0.1-SNAPSHOT",
     scalaVersion := "3.3.8",
     libraryDependencies ++= Seq(
@@ -26,13 +26,32 @@ lazy val root = (project in file("."))
       "org.typelevel"   %% "fs2-grpc-runtime"     % "3.1.2",
       "io.grpc"         %  "grpc-netty-shaded"    % scalapb.compiler.Version.grpcJavaVersion,
       "com.auth0"       %  "java-jwt"             % "4.6.2",
+      "io.prometheus"   %  "simpleclient"         % "0.16.0",
+      "io.prometheus"   %  "simpleclient_common"  % "0.16.0",
       "org.scalameta"   %% "munit"               % MunitVersion           % Test,
       "org.typelevel"   %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
-      "org.testcontainers" % "postgresql"        % "1.20.6"               % Test,
+      "net.logstash.logback" % "logstash-logback-encoder" % "6.6",
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
     ),
     testFrameworks += new TestFramework("munit.Framework"),
-    coverageExcludedPackages := "com\\.devopswithprashant\\.user\\.v1\\.user_profile.*",
+    assembly / mainClass := Some(
+      "com.devopswithprashant.service.profile.Main"
+    ),
+    assembly / assemblyJarName := "dwp-profile-service.jar",
+    assembly / test := {},
+    assembly / assemblyMergeStrategy := {
+      case PathList("META-INF", "services", _ @ _*) =>
+        MergeStrategy.concat
+      case PathList("META-INF", _ @ _*) =>
+        MergeStrategy.discard
+      case "reference.conf" =>
+        MergeStrategy.concat
+      case "application.conf" =>
+        MergeStrategy.concat
+      case _ =>
+        MergeStrategy.first
+    },
+    coverageExcludedPackages := "com\\.devopswithprashant\\.profile\\.v1\\.profile.*",
     coverageMinimumStmtTotal := 90,
     coverageFailOnMinimum := true
   )

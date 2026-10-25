@@ -1,8 +1,8 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import munit.FunSuite
 
-class UserServiceConfigSuite extends FunSuite:
+class ProfileServiceConfigSuite extends FunSuite:
 
   private val requiredEnvironment = Map(
     "DB_USER" -> "test-user",
@@ -11,7 +11,7 @@ class UserServiceConfigSuite extends FunSuite:
   )
 
   test("uses documented defaults when optional environment values are absent"):
-    val config = UserServiceConfig.fromEnvironment(requiredEnvironment)
+    val config = ProfileServiceConfig.fromEnvironment(requiredEnvironment)
     assertEquals(config.host.toString, "0.0.0.0")
     assertEquals(config.port.value, 8080)
     assertEquals(config.grpcPort, 9090)
@@ -30,7 +30,7 @@ class UserServiceConfigSuite extends FunSuite:
       "DB_PORT" -> "5544",
       "DB_NAME" -> "profiles_test"
     )
-    val config = UserServiceConfig.fromEnvironment(environment)
+    val config = ProfileServiceConfig.fromEnvironment(environment)
     assertEquals(config.host.toString, "127.0.0.1")
     assertEquals(config.port.value, 8181)
     assertEquals(config.grpcPort, 9191)
@@ -44,7 +44,7 @@ class UserServiceConfigSuite extends FunSuite:
       requiredEnvironment.updated("SERVER_PORT", "not-a-port")
     ).foreach(environment =>
       intercept[IllegalArgumentException] {
-        UserServiceConfig.fromEnvironment(environment)
+        ProfileServiceConfig.fromEnvironment(environment)
       }
     )
 
@@ -58,7 +58,7 @@ class UserServiceConfigSuite extends FunSuite:
       requiredEnvironment.updated("DB_PORT", "postgres")
     ).foreach(environment =>
       intercept[IllegalArgumentException] {
-        UserServiceConfig.fromEnvironment(environment)
+        ProfileServiceConfig.fromEnvironment(environment)
       }
     )
 
@@ -72,19 +72,19 @@ class UserServiceConfigSuite extends FunSuite:
       requiredEnvironment.updated("JWT_SECRET", "")
     ).foreach(environment =>
       intercept[IllegalArgumentException] {
-        UserServiceConfig.fromEnvironment(environment)
+        ProfileServiceConfig.fromEnvironment(environment)
       }
     )
 
   test("requires at least 48 UTF-8 bytes for the HS384 signing secret"):
     intercept[IllegalArgumentException] {
-      UserServiceConfig.fromEnvironment(
+      ProfileServiceConfig.fromEnvironment(
         requiredEnvironment.updated("JWT_SECRET", "x" * 47)
       )
     }
     val multibyteSecret = "é" * 24
     assertEquals(
-      UserServiceConfig.fromEnvironment(
+      ProfileServiceConfig.fromEnvironment(
         requiredEnvironment.updated("JWT_SECRET", multibyteSecret)
       ).jwt.secret,
       multibyteSecret

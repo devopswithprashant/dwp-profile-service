@@ -1,8 +1,8 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
 
-final case class PublicUserProfileResponse(
+final case class PublicProfileResponse(
   userId: String,
   displayName: Option[String],
   bio: Option[String],
@@ -10,7 +10,7 @@ final case class PublicUserProfileResponse(
   createdAt: String
 )
 
-final case class UserProfileResponse(
+final case class ProfileResponse(
   userId: String,
   displayName: Option[String],
   bio: Option[String],
@@ -21,9 +21,9 @@ final case class UserProfileResponse(
   updatedAt: String
 )
 
-object PublicUserProfileResponse:
-  def fromProfile(profile: PublicUserProfile): PublicUserProfileResponse =
-    PublicUserProfileResponse(
+object PublicProfileResponse:
+  def fromProfile(profile: PublicProfile): PublicProfileResponse =
+    PublicProfileResponse(
       userId = profile.userId.toString,
       displayName = profile.displayName,
       bio = profile.bio,
@@ -31,7 +31,7 @@ object PublicUserProfileResponse:
       createdAt = profile.createdAt.toString
     )
 
-  given Encoder[PublicUserProfileResponse] = Encoder.instance { response =>
+  given Encoder[PublicProfileResponse] = Encoder.instance { response =>
     Json.obj(
       "userId" -> Json.fromString(response.userId),
       "displayName" -> response.displayName.fold(Json.Null)(Json.fromString),
@@ -41,9 +41,9 @@ object PublicUserProfileResponse:
     )
   }
 
-object UserProfileResponse:
-  def fromProfile(profile: UserProfile): UserProfileResponse =
-    UserProfileResponse(
+object ProfileResponse:
+  def fromProfile(profile: Profile): ProfileResponse =
+    ProfileResponse(
       userId = profile.userId.toString,
       displayName = profile.displayName,
       bio = profile.bio,
@@ -54,7 +54,7 @@ object UserProfileResponse:
       updatedAt = profile.updatedAt.toString
     )
 
-  given Encoder[UserProfileResponse] = Encoder.instance { response =>
+  given Encoder[ProfileResponse] = Encoder.instance { response =>
     Json.obj(
       "userId" -> Json.fromString(response.userId),
       "displayName" -> response.displayName.fold(Json.Null)(Json.fromString),
@@ -67,18 +67,18 @@ object UserProfileResponse:
     )
   }
 
-final case class UserProfileUpdateRequest(
+final case class ProfileUpdateRequest(
   displayName: Option[String],
   bio: Option[String],
   avatarUrl: Option[String],
   preferences: Json,
   socialLinks: Json
 ):
-  def toDomain: UserProfileUpdate =
-    UserProfileUpdate(displayName, bio, avatarUrl, preferences, socialLinks)
+  def toDomain: ProfileUpdate =
+    ProfileUpdate(displayName, bio, avatarUrl, preferences, socialLinks)
 
-object UserProfileUpdateRequest:
-  given Decoder[UserProfileUpdateRequest] = Decoder.instance { cursor =>
+object ProfileUpdateRequest:
+  given Decoder[ProfileUpdateRequest] = Decoder.instance { cursor =>
     for
       displayName <- cursor.get[Option[String]]("displayName")
       bio <- cursor.get[Option[String]]("bio")
@@ -95,7 +95,7 @@ object UserProfileUpdateRequest:
         (),
         DecodingFailure("socialLinks must be a JSON object", cursor.history)
       )
-    yield UserProfileUpdateRequest(
+    yield ProfileUpdateRequest(
       displayName,
       bio,
       avatarUrl,

@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package dwp.userservice.v1;
+package dwp.profileservice.v1;
 
-option java_package = "com.devopswithprashant.user.v1";
+option java_package = "com.devopswithprashant.profile.v1";
 option java_multiple_files = true;
-option java_outer_classname = "UserProfileServiceProto";
+option java_outer_classname = "ProfileServiceProto";
 
-service UserProfileService {
+service ProfileService {
   rpc CreateDefaultProfile(CreateDefaultProfileRequest)
       returns (CreateDefaultProfileResponse);
 }

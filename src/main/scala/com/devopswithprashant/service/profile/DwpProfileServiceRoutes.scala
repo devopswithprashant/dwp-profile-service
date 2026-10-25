@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.Async
 import cats.syntax.all.*
@@ -11,31 +11,33 @@ import org.http4s.{AuthScheme, Credentials, Header, Request, Response, Status}
 import org.http4s.headers.Authorization
 import org.typelevel.ci.CIString
 
-object DwpuserserviceRoutes:
+object DwpProfileServiceRoutes:
 
-  private def parseUserId(value: String): Option[UUID] =
+  private def parseProfileId(value: String): Option[UUID] =
     Either
       .catchOnly[IllegalArgumentException](UUID.fromString(value))
       .toOption
       .filter(_.toString.equalsIgnoreCase(value))
 
   def routes[F[_]: Async](
-    profileService: UserProfileService[F],
-    jwtAuthenticator: JwtAuthenticator[F]
+    profileService: ProfileService[F],
+    jwtAuthenticator: JwtAuthenticator[F],
+    metrics: ServiceMetrics,
+    databaseHealth: F[Boolean]
   ): HttpRoutes[F] =
     val dsl = new Http4sDsl[F] {}
     import dsl.*
 
-    def errorResponse(error: UserProfileServiceError): F[org.http4s.Response[F]] =
+    def errorResponse(error: ProfileServiceError): F[org.http4s.Response[F]] =
       error match
-        case UserProfileServiceError.ProfileNotFound(userId) =>
+        case ProfileServiceError.ProfileNotFound(userId) =>
           NotFound(
             Json.obj(
               "error" -> Json.fromString("profile_not_found"),
               "userId" -> Json.fromString(userId.toString)
             )
           )
-        case UserProfileServiceError.InvalidUpdate(errors) =>
+        case ProfileServiceError.InvalidUpdate(errors) =>
           BadRequest(
             Json.obj(
               "error" -> Json.fromString("invalid_update"),
@@ -67,28 +69,54 @@ object DwpuserserviceRoutes:
 
     HttpRoutes.of[F] {
       case GET -> Root / "health" =>
-        val response = Json.obj(
-          "status" -> Json.fromString("UP"),
-          "service" -> Json.fromString("dwp-user-service")
+        databaseHealth.flatMap { databaseUp =>
+          metrics.recordDatabaseHealth(databaseUp)
+          val status = if databaseUp then Status.Ok else Status.ServiceUnavailable
+          val response = Json.obj(
+            "status" -> Json.fromString(if databaseUp then "UP" else "DOWN"),
+            "service" -> Json.fromString("dwp-profile-service"),
+            "components" -> Json.obj(
+              "database" -> Json.fromString(if databaseUp then "UP" else "DOWN")
+            )
+          )
+          Response[F](status = status).withEntity(response).pure[F]
+        }
+
+      case GET -> Root / "health" / "live" =>
+        Ok(
+          Json.obj(
+            "status" -> Json.fromString("UP"),
+            "service" -> Json.fromString("dwp-profile-service")
+          )
         )
 
-        Ok(response)
+      case GET -> Root / "metrics" =>
+        Async[F].delay {
+          Response[F](status = Status.Ok)
+            .withEntity(metrics.renderPrometheus)
+            .putHeaders(
+              Header.Raw(
+                CIString("Content-Type"),
+                "text/plain; version=0.0.4; charset=utf-8"
+              )
+            )
+        }
 
-      case request @ GET -> Root / "api" / "v1" / "users" / "me" =>
+      case request @ GET -> Root / "api" / "v1" / "profiles" / "me" =>
         authenticatedUserId(request).flatMap {
           case Left(_) => unauthorized
           case Right(userId) =>
             profileService.getProfile(userId).flatMap {
-              case Right(profile) => Ok(UserProfileResponse.fromProfile(profile))
+              case Right(profile) => Ok(ProfileResponse.fromProfile(profile))
               case Left(error) => errorResponse(error)
             }
         }
 
-      case request @ PUT -> Root / "api" / "v1" / "users" / "me" =>
+      case request @ PUT -> Root / "api" / "v1" / "profiles" / "me" =>
         authenticatedUserId(request).flatMap {
           case Left(_) => unauthorized
           case Right(userId) =>
-            request.attemptAs[UserProfileUpdateRequest].value.flatMap {
+            request.attemptAs[ProfileUpdateRequest].value.flatMap {
               case Left(_) =>
                 BadRequest(
                   Json.obj(
@@ -99,25 +127,25 @@ object DwpuserserviceRoutes:
               case Right(update) =>
                 profileService.updateProfile(userId, update.toDomain).flatMap {
                   case Right(profile) =>
-                    Ok(UserProfileResponse.fromProfile(profile))
+                    Ok(ProfileResponse.fromProfile(profile))
                   case Left(error) => errorResponse(error)
                 }
             }
         }
 
-      case GET -> Root / "api" / "v1" / "users" / userId =>
-        parseUserId(userId) match
+      case GET -> Root / "api" / "v1" / "profiles" / profileId =>
+        parseProfileId(profileId) match
           case None =>
             BadRequest(
               Json.obj(
-                "error" -> Json.fromString("invalid_user_id"),
-                "message" -> Json.fromString("userId must be a UUID")
+                "error" -> Json.fromString("invalid_profile_id"),
+                "message" -> Json.fromString("profileId must be a UUID")
               )
             )
           case Some(id) =>
             profileService.getPublicProfile(id).flatMap {
               case Right(profile) =>
-                Ok(PublicUserProfileResponse.fromProfile(profile))
+                Ok(PublicProfileResponse.fromProfile(profile))
               case Left(error) => errorResponse(error)
             }
     }

@@ -1,0 +1,13 @@
+.git
+.github
+.bsp
+.metals
+.idea
+.vscode
+target
+project/target
+project/project
+coverage
+.env
+.env.*
+*.log

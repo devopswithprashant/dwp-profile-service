@@ -1,7 +1,8 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.IO
 import cats.syntax.all.*
+import cats.data.Kleisli
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.circe.Json
@@ -15,7 +16,7 @@ import org.http4s.headers.{Authorization, `Content-Type`}
 import org.http4s.implicits.*
 import org.typelevel.ci.CIString
 
-class DwpuserserviceRoutesSuite extends CatsEffectSuite:
+class DwpProfileServiceRoutesSuite extends CatsEffectSuite:
 
   import TestSupport.*
 
@@ -30,9 +31,18 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
       .withExpiresAt(Date.from(Instant.now().plusSeconds(300)))
       .sign(Algorithm.HMAC384(jwtSecret))
 
-  private def app(repository: UserProfileRepository[IO]): HttpApp[IO] =
-    DwpuserserviceRoutes
-      .routes[IO](new UserProfileService[IO](repository), authenticator)
+  private def app(
+    repository: ProfileRepository[IO],
+    databaseHealth: IO[Boolean] = IO.pure(true),
+    metrics: ServiceMetrics = new ServiceMetrics()
+  ): HttpApp[IO] =
+    DwpProfileServiceRoutes
+      .routes[IO](
+        new ProfileService[IO](repository),
+        authenticator,
+        metrics,
+        databaseHealth
+      )
       .orNotFound
 
   private def request(
@@ -57,6 +67,113 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     yield
       assertEquals(response.status, Status.Ok)
       assertEquals(body.hcursor.get[String]("status"), Right("UP"))
+      assertEquals(body.hcursor.get[String]("service"), Right("dwp-profile-service"))
+      assertEquals(
+        body.hcursor.downField("components").get[String]("database"),
+        Right("UP")
+      )
+
+  test("readiness health endpoint reports database outage and liveness stays up"):
+    for
+      repo <- repository()
+      service = app(repo, IO.pure(false))
+      ready <- service.run(request(Method.GET, uri"/health"))
+      readyBody <- ready.as[Json]
+      live <- service.run(request(Method.GET, uri"/health/live"))
+      liveBody <- live.as[Json]
+    yield
+      assertEquals(ready.status, Status.ServiceUnavailable)
+      assertEquals(readyBody.hcursor.get[String]("status"), Right("DOWN"))
+      assertEquals(
+        readyBody.hcursor.downField("components").get[String]("database"),
+        Right("DOWN")
+      )
+      assertEquals(live.status, Status.Ok)
+      assertEquals(liveBody.hcursor.get[String]("status"), Right("UP"))
+
+  test("metrics endpoint exposes Prometheus text format and database health gauge"):
+    val metrics = new ServiceMetrics()
+    for
+      repo <- repository()
+      service = app(repo, IO.pure(true), metrics)
+      _ <- service.run(request(Method.GET, uri"/health"))
+      response <- service.run(request(Method.GET, uri"/metrics"))
+      body <- response.as[String]
+    yield
+      assertEquals(response.status, Status.Ok)
+      assertEquals(
+        response.headers.get(CIString("Content-Type")).map(_.head.value),
+        Some("text/plain; version=0.0.4; charset=utf-8")
+      )
+      assert(body.contains("# HELP database_health"))
+      assert(body.contains("database_health 1.0"))
+
+  test("HTTP instrumentation records normalized routes and response status"):
+    val userId = UUID.randomUUID()
+    val metrics = new ServiceMetrics()
+    for
+      repo <- repository()
+      instrumented = HttpObservability.instrument(app(repo, metrics = metrics), metrics)
+      response <- instrumented.run(
+        request(
+          Method.GET,
+          Uri.unsafeFromString(s"/api/v1/profiles/$userId")
+        )
+      )
+      exposition = metrics.renderPrometheus
+    yield
+      assertEquals(response.status, Status.NotFound)
+      assert(exposition.contains("""route="/api/v1/profiles/{profileId}""""))
+      assert(exposition.contains("""status="404""""))
+      assert(!exposition.contains(userId.toString))
+
+  test("HTTP instrumentation uses bounded route labels for service endpoints"):
+    val userId = UUID.randomUUID()
+    val metrics = new ServiceMetrics()
+    for
+      repo <- repository()
+      instrumented = HttpObservability.instrument(app(repo, metrics = metrics), metrics)
+      _ <- instrumented.run(request(Method.GET, uri"/health"))
+      _ <- instrumented.run(request(Method.GET, uri"/health/live"))
+      _ <- instrumented.run(request(Method.GET, uri"/metrics"))
+      _ <- instrumented.run(request(Method.GET, uri"/api/v1/profiles/me"))
+      _ <- instrumented.run(
+        request(
+          Method.GET,
+          Uri.unsafeFromString(s"/api/v1/profiles/$userId")
+        )
+      )
+      _ <- instrumented.run(request(Method.GET, uri"/unknown"))
+      exposition = metrics.renderPrometheus
+    yield
+      assert(exposition.contains("""route="/health""""))
+      assert(exposition.contains("""route="/health/live""""))
+      assert(exposition.contains("""route="/metrics""""))
+      assert(exposition.contains("""route="/api/v1/profiles/me""""))
+      assert(exposition.contains("""route="unmatched""""))
+      assert(!exposition.contains(userId.toString))
+
+  test("HTTP instrumentation records and rethrows unexpected application failures"):
+    val metrics = new ServiceMetrics()
+    val failingApp: HttpApp[IO] =
+      Kleisli((_: Request[IO]) =>
+        IO.raiseError[Response[IO]](
+          new IllegalStateException("sensitive failure detail")
+        )
+      )
+    val instrumented = HttpObservability.instrument(failingApp, metrics)
+    for
+      result <- instrumented.run(request(Method.GET, uri"/unknown")).attempt
+      exposition = metrics.renderPrometheus
+    yield
+      assert(result.left.toOption.exists(_.isInstanceOf[IllegalStateException]))
+      assert(
+        exposition.linesIterator.exists(line =>
+          line.startsWith("http_server_requests_total{") &&
+            line.contains("""status="500"""") &&
+            line.endsWith(" 1.0")
+        )
+      )
 
   test("public endpoint returns only allowlisted profile fields"):
     val userId = UUID.randomUUID()
@@ -69,7 +186,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
       response <- app(repo).run(
         request(
           Method.GET,
-          Uri.unsafeFromString(s"/api/v1/users/$userId")
+          Uri.unsafeFromString(s"/api/v1/profiles/$userId")
         )
       )
       body <- response.as[Json]
@@ -82,16 +199,21 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     for
       repo <- repository()
       service = app(repo)
-      malformed <- service.run(request(Method.GET, uri"/api/v1/users/not-a-uuid"))
+      malformed <- service.run(request(Method.GET, uri"/api/v1/profiles/not-a-uuid"))
+      malformedBody <- malformed.as[Json]
       missingId = UUID.randomUUID()
       missing <- service.run(
         request(
           Method.GET,
-          Uri.unsafeFromString(s"/api/v1/users/$missingId")
+          Uri.unsafeFromString(s"/api/v1/profiles/$missingId")
         )
       )
     yield
       assertEquals(malformed.status, Status.BadRequest)
+      assertEquals(
+        malformedBody.hcursor.get[String]("error"),
+        Right("invalid_profile_id")
+      )
       assertEquals(missing.status, Status.NotFound)
 
   test("unknown route returns 404"):
@@ -105,13 +227,13 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     for
       repo <- repository(Map(userId -> profile(userId)))
       service = app(repo)
-      missing <- service.run(request(Method.GET, uri"/api/v1/users/me"))
+      missing <- service.run(request(Method.GET, uri"/api/v1/profiles/me"))
       malformedScheme <- service.run(
-        Request[IO](Method.GET, uri"/api/v1/users/me")
+        Request[IO](Method.GET, uri"/api/v1/profiles/me")
           .putHeaders(Authorization(Credentials.Token(AuthScheme.Basic, "bad")))
       )
       invalid <- service.run(
-        Request[IO](Method.GET, uri"/api/v1/users/me")
+        Request[IO](Method.GET, uri"/api/v1/profiles/me")
           .putHeaders(
             Authorization(Credentials.Token(AuthScheme.Bearer, "invalid"))
           )
@@ -127,7 +249,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     for
       repo <- repository(Map(userId -> profile(userId)))
       response <- app(repo).run(
-        request(Method.GET, uri"/api/v1/users/me", Some(userId))
+        request(Method.GET, uri"/api/v1/profiles/me", Some(userId))
       )
       body <- response.as[Json]
     yield
@@ -140,7 +262,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     for
       repo <- repository()
       response <- app(repo).run(
-        request(Method.GET, uri"/api/v1/users/me", Some(userId))
+        request(Method.GET, uri"/api/v1/profiles/me", Some(userId))
       )
     yield assertEquals(response.status, Status.NotFound)
 
@@ -154,7 +276,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     for
       repo <- repository(Map(userId -> profile(userId).copy(bio = Some("old"))))
       response <- app(repo).run(
-        request(Method.PUT, uri"/api/v1/users/me", Some(userId), Some(update))
+        request(Method.PUT, uri"/api/v1/profiles/me", Some(userId), Some(update))
       )
       body <- response.as[Json]
       stored <- repo.findByUserId(userId)
@@ -177,7 +299,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
       invalidShape <- service.run(
         request(
           Method.PUT,
-          uri"/api/v1/users/me",
+          uri"/api/v1/profiles/me",
           Some(userId),
           Some(malformedSchema)
         )
@@ -185,7 +307,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
       overlong <- service.run(
         request(
           Method.PUT,
-          uri"/api/v1/users/me",
+          uri"/api/v1/profiles/me",
           Some(userId),
           Some(invalidUpdate)
         )
@@ -193,7 +315,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
       missing <- service.run(
         request(
           Method.PUT,
-          uri"/api/v1/users/me",
+          uri"/api/v1/profiles/me",
           Some(userId),
           Some(
             Json.obj("preferences" -> Json.obj(), "socialLinks" -> Json.obj())
@@ -209,7 +331,7 @@ class DwpuserserviceRoutesSuite extends CatsEffectSuite:
     val userId = UUID.randomUUID()
     for
       repo <- repository()
-      request = Request[IO](Method.PUT, uri"/api/v1/users/me")
+      request = Request[IO](Method.PUT, uri"/api/v1/profiles/me")
         .putHeaders(
           Authorization(Credentials.Token(AuthScheme.Bearer, token(userId))),
           `Content-Type`(MediaType.application.json)

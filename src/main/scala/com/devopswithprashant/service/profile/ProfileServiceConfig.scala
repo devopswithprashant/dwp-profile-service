@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.Sync
 import com.comcast.ip4s.{Host, Port}
@@ -13,7 +13,7 @@ final case class DatabaseConfig(
 
 final case class JwtConfig(secret: String)
 
-final case class UserServiceConfig(
+final case class ProfileServiceConfig(
   host: Host,
   port: Port,
   grpcPort: Int,
@@ -22,14 +22,14 @@ final case class UserServiceConfig(
   jwt: JwtConfig
 )
 
-object UserServiceConfig:
+object ProfileServiceConfig:
 
-  def load[F[_]: Sync]: F[UserServiceConfig] =
+  def load[F[_]: Sync]: F[ProfileServiceConfig] =
     Sync[F].delay(fromEnvironment(sys.env))
 
-  private[user] def fromEnvironment(
+  private[profile] def fromEnvironment(
     environment: Map[String, String]
-  ): UserServiceConfig =
+  ): ProfileServiceConfig =
     val hostValue =
       environment.getOrElse("SERVER_HOST", "0.0.0.0")
 
@@ -105,7 +105,7 @@ object UserServiceConfig:
       "JWT_SECRET must contain at least 48 UTF-8 bytes for HS384"
     )
 
-    UserServiceConfig(
+    ProfileServiceConfig(
       host = host,
       port = port,
       grpcPort = grpcPort,

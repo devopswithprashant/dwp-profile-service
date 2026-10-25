@@ -1,9 +1,9 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.IO
-import com.devopswithprashant.user.v1.user_profile.{
+import com.devopswithprashant.profile.v1.profile.{
   CreateDefaultProfileRequest,
-  UserProfileServiceGrpc
+  ProfileServiceGrpc
 }
 import io.grpc.{ManagedChannel, ManagedChannelBuilder, Status, StatusRuntimeException}
 import java.net.ServerSocket
@@ -12,7 +12,7 @@ import munit.CatsEffectSuite
 import scala.concurrent.duration.*
 import TestSupport.*
 
-class UserProfileGrpcServerSuite extends CatsEffectSuite:
+class ProfileGrpcServerSuite extends CatsEffectSuite:
 
   private def unusedPort: IO[Int] =
     IO.blocking {
@@ -40,13 +40,13 @@ class UserProfileGrpcServerSuite extends CatsEffectSuite:
     for
       port <- unusedPort
       repo <- repository()
-      service = new UserProfileService[IO](repo)
-      result <- UserProfileGrpcServer
-        .resource[IO](port, service)
+      service = new ProfileService[IO](repo)
+      result <- ProfileGrpcServer
+        .resource[IO](port, service, new ServiceMetrics())
         .use { _ =>
           channel(port).bracket { grpcChannel =>
             IO.blocking {
-              val stub = new UserProfileServiceGrpc.UserProfileServiceBlockingStub(grpcChannel)
+              val stub = new ProfileServiceGrpc.ProfileServiceBlockingStub(grpcChannel)
               val userId = UUID.randomUUID()
               val response =
                 stub.createDefaultProfile(

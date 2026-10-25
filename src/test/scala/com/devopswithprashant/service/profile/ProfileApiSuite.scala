@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import io.circe.Json
 import io.circe.parser.decode
@@ -6,11 +6,11 @@ import io.circe.syntax.*
 import java.util.UUID
 import munit.FunSuite
 
-class UserProfileApiSuite extends FunSuite:
+class ProfileApiSuite extends FunSuite:
 
   test("public profile encoder exposes only the public fields"):
     val userId = UUID.randomUUID()
-    val response = PublicUserProfileResponse(
+    val response = PublicProfileResponse(
       userId.toString,
       Some("Ada"),
       None,
@@ -28,7 +28,7 @@ class UserProfileApiSuite extends FunSuite:
     )
 
   test("private profile encoder includes profile settings and timestamps"):
-    val json = UserProfileResponse(
+    val json = ProfileResponse(
       UUID.randomUUID().toString,
       None,
       None,
@@ -43,7 +43,7 @@ class UserProfileApiSuite extends FunSuite:
     assertEquals(json.hcursor.get[String]("updatedAt"), Right("updated"))
 
   test("update decoder accepts valid objects and omitted nullable fields"):
-    val decoded = decode[UserProfileUpdateRequest](
+    val decoded = decode[ProfileUpdateRequest](
       """{"preferences":{"theme":"dark"},"socialLinks":{}}"""
     )
     assert(decoded.isRight)
@@ -51,7 +51,7 @@ class UserProfileApiSuite extends FunSuite:
     assertEquals(decoded.map(_.avatarUrl), Right(None))
 
   test("update decoder accepts all nullable fields and maps them to domain"):
-    val decoded = decode[UserProfileUpdateRequest](
+    val decoded = decode[ProfileUpdateRequest](
       """{"displayName":"Ada","bio":"Engineer","avatarUrl":"https://example.test/a","preferences":{},"socialLinks":{}}"""
     )
     assertEquals(decoded.map(_.toDomain.displayName), Right(Some("Ada")))
@@ -66,4 +66,4 @@ class UserProfileApiSuite extends FunSuite:
       """{"displayName":4,"preferences":{},"socialLinks":{}}""",
       """not-json"""
     )
-    cases.foreach(value => assert(decode[UserProfileUpdateRequest](value).isLeft, value))
+    cases.foreach(value => assert(decode[ProfileUpdateRequest](value).isLeft, value))

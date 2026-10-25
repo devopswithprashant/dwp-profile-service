@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.IO
 import cats.syntax.all.*
@@ -6,9 +6,9 @@ import io.circe.Json
 import java.util.UUID
 import munit.CatsEffectSuite
 
-class UserProfileServiceSuite extends CatsEffectSuite:
+class ProfileServiceSuite extends CatsEffectSuite:
 
-  import UserProfileServiceError.*
+  import ProfileServiceError.*
   import TestSupport.*
 
   private def update(
@@ -17,14 +17,14 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     avatarUrl: Option[String] = None,
     preferences: Json = Json.obj(),
     socialLinks: Json = Json.obj()
-  ): UserProfileUpdate =
-    UserProfileUpdate(displayName, bio, avatarUrl, preferences, socialLinks)
+  ): ProfileUpdate =
+    ProfileUpdate(displayName, bio, avatarUrl, preferences, socialLinks)
 
   test("creates a default profile and returns its identity"):
     val userId = UUID.randomUUID()
     for
       repo <- repository()
-      created <- new UserProfileService[IO](repo).createDefaultProfile(userId)
+      created <- new ProfileService[IO](repo).createDefaultProfile(userId)
       fetched <- repo.findByUserId(userId)
     yield
       assertEquals(created.userId, userId)
@@ -36,7 +36,7 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     val existing = profile(userId)
     for
       repo <- repository(Map(userId -> existing))
-      service = new UserProfileService[IO](repo)
+      service = new ProfileService[IO](repo)
       privateResult <- service.getProfile(userId)
       publicResult <- service.getPublicProfile(userId)
       missingPrivate <- service.getProfile(missingId)
@@ -59,7 +59,7 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     )
     for
       repo <- repository(Map(userId -> existing))
-      result <- new UserProfileService[IO](repo).updateProfile(userId, request)
+      result <- new ProfileService[IO](repo).updateProfile(userId, request)
     yield
       assertEquals(result.map(_.displayName), Right(Some("Ada")))
       assertEquals(result.map(_.bio), Right(Some("Engineer")))
@@ -74,7 +74,7 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     )
     for
       repo <- repository(Map(userId -> profile(userId)))
-      result <- new UserProfileService[IO](repo).updateProfile(userId, request)
+      result <- new ProfileService[IO](repo).updateProfile(userId, request)
     yield assert(result.isRight)
 
   test("rejects overlong text, invalid URLs, and non-object JSON documents"):
@@ -88,7 +88,7 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     )
     for
       repo <- repository(Map(userId -> profile(userId)))
-      result <- new UserProfileService[IO](repo).updateProfile(userId, request)
+      result <- new ProfileService[IO](repo).updateProfile(userId, request)
     yield
       val errors = result.left.toOption.collect { case InvalidUpdate(values) => values }.get
       assertEquals(errors.map(_.field).toSet, Set("displayName", "bio", "avatarUrl", "preferences", "socialLinks"))
@@ -105,7 +105,7 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     )
     for
       repo <- repository(Map(userId -> profile(userId)))
-      service = new UserProfileService[IO](repo)
+      service = new ProfileService[IO](repo)
       results <- invalidUrls.traverse(url =>
         service.updateProfile(userId, update(avatarUrl = Some(url)))
       )
@@ -115,7 +115,7 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     val userId = UUID.randomUUID()
     for
       repo <- repository()
-      result <- new UserProfileService[IO](repo).updateProfile(
+      result <- new ProfileService[IO](repo).updateProfile(
         userId,
         update(displayName = Some("x" * 101))
       )
@@ -128,5 +128,5 @@ class UserProfileServiceSuite extends CatsEffectSuite:
     val userId = UUID.randomUUID()
     for
       repo <- repository()
-      result <- new UserProfileService[IO](repo).updateProfile(userId, update())
+      result <- new ProfileService[IO](repo).updateProfile(userId, update())
     yield assertEquals(result, Left(ProfileNotFound(userId)))
