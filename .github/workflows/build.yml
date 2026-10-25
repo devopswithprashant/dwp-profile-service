@@ -55,14 +55,14 @@ jobs:
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
 
+      - name: Compile
+        run: sbt clean compile
+
       - name: Extract sbt project version
         id: project_version
         run: |
           VERSION=$(sbt -batch -error 'print version')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Compile
-        run: sbt clean compile
 
       - name: Run tests
         #run: sbt clean coverage test coverageReport
