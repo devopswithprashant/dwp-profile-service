@@ -63,8 +63,8 @@ jobs:
       - name: Extract sbt project version
         id: project_version
         run: |
-          VERSION=$(sbt -batch -error 'print version')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          VERSION=$(sbt -batch -error 'print version' | awk '/^[[:alnum:]][[:alnum:].+_-]*$/ { version = $0 } END { if (version == "") exit 1; print version }')
+          printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compile
         run: sbt clean compile
