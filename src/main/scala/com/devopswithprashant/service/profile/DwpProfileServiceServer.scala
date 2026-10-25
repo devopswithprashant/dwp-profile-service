@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.{Async, Resource}
 import cats.syntax.all.*
@@ -8,17 +8,17 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.slf4j.LoggerFactory
 import scala.jdk.CollectionConverters.*
 
-object DwpuserserviceServer:
+object DwpProfileServiceServer:
 
   private val logger = LoggerFactory.getLogger("application.lifecycle")
 
   def run[F[_]: Async]: F[Nothing] =
-    UserServiceConfig.load[F].flatMap { config =>
+    ProfileServiceConfig.load[F].flatMap { config =>
       serverResource[F](config).use(_ => Async[F].never[Nothing])
     }
 
-  private[user] def serverResource[F[_]: Async](
-    config: UserServiceConfig
+  private[profile] def serverResource[F[_]: Async](
+    config: ProfileServiceConfig
   ): Resource[F, org.http4s.server.Server] =
     Resource.eval(DatabaseMigrations.migrate[F](config.database)) *>
       DatabaseTransactor.create[F](config.database).flatMap { transactor =>
@@ -27,8 +27,8 @@ object DwpuserserviceServer:
         Resource.eval(startupCheck) *>
           {
             val profileRepository =
-              new DoobieUserProfileRepository[F](transactor)
-            val profileService = new UserProfileService[F](profileRepository)
+              new DoobieProfileRepository[F](transactor)
+            val profileService = new ProfileService[F](profileRepository)
             val jwtAuthenticator = new JwtAuthenticator[F](config.jwt)
             val metrics = new ServiceMetrics()
             metrics.recordDatabaseHealth(isUp = true)
@@ -37,7 +37,7 @@ object DwpuserserviceServer:
                 sql"SELECT 1".query[Int].unique.transact(transactor).void
               )
             val httpApp =
-              DwpuserserviceRoutes
+              DwpProfileServiceRoutes
                 .routes[F](
                   profileService,
                   jwtAuthenticator,
@@ -46,7 +46,7 @@ object DwpuserserviceServer:
                 )
                 .orNotFound
             val finalHttpApp = HttpObservability.instrument(httpApp, metrics)
-            UserProfileGrpcServer
+            ProfileGrpcServer
               .resource[F](config.grpcPort, profileService, metrics)
               .flatMap { _ =>
                 EmberServerBuilder
@@ -66,7 +66,7 @@ object DwpuserserviceServer:
                             "grpc_port" -> Integer.valueOf(config.grpcPort)
                           ).asJava
                         ),
-                        "User Service started"
+                        "Profile Service started"
                       )
                     }
                   )

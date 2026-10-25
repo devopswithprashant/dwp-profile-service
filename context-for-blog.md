@@ -3,13 +3,13 @@
 ## Purpose
 
 Use this handoff when changing the Blog Service so newly created blogs are
-associated with the authenticated author's User Service profile rather than
-being anonymous. It documents the implemented User Service contract and the
+associated with the authenticated author's Profile Service profile rather than
+being anonymous. It documents the implemented Profile Service contract and the
 recommended identity boundary; it does not assume a Blog Service framework,
 database, API shape, or deployment topology.
 
-The Auth Service owns login, credentials, identity, and JWT issuance. The User
-Service owns user profile data. The Blog Service owns blogs and should store
+The Auth Service owns login, credentials, identity, and JWT issuance. The Profile
+Service owns profile data. The Blog Service owns blogs and should store
 the Auth user's UUID as the author's stable cross-service identity. Each
 service accesses only its own database; do not add cross-service database
 access or a cross-database foreign key.
@@ -37,22 +37,22 @@ submit author identity. The Blog Service associates the verified principal
 server-side. Responses may expose an author projection (for example, a user
 UUID, display name, and avatar URL) without exposing private profile fields.
 
-## User Service profile API
+## Profile Service profile API
 
-The User Service HTTP port defaults to `8080`; confirm the deployed service
+The Profile Service HTTP port defaults to `8080`; confirm the deployed service
 address and any gateway prefix for each environment. Use configuration or
 service discovery rather than hardcoding a developer machine hostname.
 
 | Method | Path | Authentication | Purpose |
 |---|---|---|---|
-| `GET` | `/api/v1/users/{userId}` | None | Retrieve the public profile for an author UUID |
-| `GET` | `/api/v1/users/me` | Bearer JWT | Retrieve the current user's full profile |
-| `PUT` | `/api/v1/users/me` | Bearer JWT | Replace mutable fields on the current user's profile |
+| `GET` | `/api/v1/profiles/{profileId}` | None | Retrieve the public profile for an author UUID |
+| `GET` | `/api/v1/profiles/me` | Bearer JWT | Retrieve the current user's full profile |
+| `PUT` | `/api/v1/profiles/me` | Bearer JWT | Replace mutable fields on the current user's profile |
 
 For rendering blog authors, use the unauthenticated public endpoint:
 
 ```http
-GET /api/v1/users/8c0c0b42-ff2a-4d68-b90f-3b845ca8106a
+GET /api/v1/profiles/8c0c0b42-ff2a-4d68-b90f-3b845ca8106a
 ```
 
 Successful response (`200`):
@@ -85,7 +85,7 @@ according to the deployment environment.
 
 ## Identity and JWT contract
 
-The Auth Service issues the access token. The User Service currently validates
+The Auth Service issues the access token. The Profile Service currently validates
 JWTs with:
 
 - Algorithm: `HS384`
@@ -96,7 +96,7 @@ JWTs with:
 - `iat`: optional; must not be in the future
 - `nbf`: if present, must not be in the future
 
-The User Service uses `JWT_SECRET`, requires at least 48 UTF-8 bytes, and
+The Profile Service uses `JWT_SECRET`, requires at least 48 UTF-8 bytes, and
 requires the Auth Service to use the same signing secret. Never put the
 secret or bearer token in source, checked-in configuration, URLs, logs, or
 error reports.
@@ -115,7 +115,7 @@ Do not trust a caller-provided identity header just because it is named
 with platform/Auth owners. Sharing the current HS384 signing secret grants
 each holder the ability to mint tokens; consider a coordinated asymmetric
 signing design if the platform requires verification without token-issuing
-capability. The User Service's bearer-token validation is for its REST routes;
+capability. The Profile Service's bearer-token validation is for its REST routes;
 it does not automatically authenticate Blog Service requests or the User
 Service's gRPC listener.
 
@@ -128,10 +128,10 @@ Service's gRPC listener.
 3. The Blog Service reads the verified UUID from `sub` and persists that UUID
    with the blog in its own transaction.
 4. When showing authors, the Blog Service resolves that UUID through
-   `GET /api/v1/users/{userId}` and uses only the public response fields.
+   `GET /api/v1/profiles/{profileId}` and uses only the public response fields.
 
-The Blog Service does not create user profiles. Profile creation/provisioning
-belongs to the Auth Service calling the User Service's gRPC
+The Blog Service does not create profiles. Profile creation/provisioning
+belongs to the Auth Service calling the Profile Service's gRPC
 `CreateDefaultProfile` after the identity transaction commits. Blog creation
 must not call that gRPC method or create a second identity/profile. The gRPC
 listener defaults to port `9090`, currently has no caller authentication or
@@ -142,12 +142,12 @@ The public profile API has no batch endpoint. For blog listing pages, avoid
 an unbounded one-request-per-post lookup pattern: deduplicate author UUIDs and
 use the Blog Service's established bounded cache or request batching strategy.
 Do not cache private profile data in the author projection. If this becomes a
-measured bottleneck, coordinate a batch public-profile API with the User
+measured bottleneck, coordinate a batch public-profile API with the Profile
 Service rather than reading its database.
 
 ## Existing anonymous blogs and migration
 
-The User Service cannot infer which existing anonymous blogs belong to which
+The Profile Service cannot infer which existing anonymous blogs belong to which
 profiles. The Blog Service owns its schema and migration.
 
 - Keep legacy author references nullable or represent legacy anonymity
@@ -168,14 +168,14 @@ profiles. The Blog Service owns its schema and migration.
   blog creation requires login.
 - How the Blog Service validates the JWT, and whether it receives requests
   directly or only through a trusted gateway.
-- Deployed User Service API origin, TLS, network access, and gateway path.
+- Deployed Profile Service API origin, TLS, network access, and gateway path.
 - How author details are resolved and cached without creating N+1 requests.
 - How old anonymous blogs are displayed and whether any trusted backfill
   source exists.
-- How an author's profile deletion/absence or temporary User Service outage
+- How an author's profile deletion/absence or temporary Profile Service outage
   should appear in blog pages.
 - Whether the author projection includes display name/avatar snapshots or is
-  resolved from the current public profile. The User Service is the canonical
+  resolved from the current public profile. The Profile Service is the canonical
   source for current profile values.
 
 ## Implementation checklist
@@ -187,7 +187,7 @@ profiles. The Blog Service owns its schema and migration.
       gateway identity; reject missing/invalid identity on protected writes.
 - [ ] Ignore or reject client-supplied author/user identity fields.
 - [ ] Enforce owner checks on every author-controlled operation.
-- [ ] Resolve author cards through the User Service public profile endpoint,
+- [ ] Resolve author cards through the Profile Service public profile endpoint,
       handling `400`, `404`, timeouts, and `5xx` without leaking tokens.
 - [ ] Preserve existing anonymous data and make any backfill an explicit,
       audited product/data decision.
@@ -195,11 +195,11 @@ profiles. The Blog Service owns its schema and migration.
       bounded read retry/cache through the Blog Service's deployment settings.
 - [ ] Test missing/invalid tokens, forged author IDs, successful association,
       cross-user modification/deletion denial, legacy anonymous records,
-      profile `404`, and User Service unavailability.
+      profile `404`, and Profile Service unavailability.
 - [ ] Confirm public blog reads remain available without authentication if that
       is the existing product behavior.
 
-## Related User Service references
+## Related Profile Service references
 
 - [`context.md`](./context.md) — project blueprint and implemented service
   status.
@@ -207,10 +207,10 @@ profiles. The Blog Service owns its schema and migration.
   profile provisioning handoff.
 - [`context-for-ui.md`](./context-for-ui.md) — detailed REST response and
   status-code contract for the public profile and `/me` routes.
-- [`src/main/scala/com/devopswithprashant/service/user/DwpuserserviceRoutes.scala`](./src/main/scala/com/devopswithprashant/service/user/DwpuserserviceRoutes.scala) —
+- [`src/main/scala/com/devopswithprashant/service/profile/DwpProfileServiceRoutes.scala`](./src/main/scala/com/devopswithprashant/service/profile/DwpProfileServiceRoutes.scala) —
   implemented HTTP routes and status handling.
-- [`src/main/scala/com/devopswithprashant/service/user/JwtAuthenticator.scala`](./src/main/scala/com/devopswithprashant/service/user/JwtAuthenticator.scala) —
+- [`src/main/scala/com/devopswithprashant/service/profile/JwtAuthenticator.scala`](./src/main/scala/com/devopswithprashant/service/profile/JwtAuthenticator.scala) —
   JWT verification rules and claims.
-- [`src/main/protobuf/user_profile.proto`](./src/main/protobuf/user_profile.proto) —
+- [`src/main/protobuf/profile.proto`](./src/main/protobuf/profile.proto) —
   Auth-owned default-profile provisioning contract; not used for blog author
   lookups.

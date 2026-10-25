@@ -1,13 +1,13 @@
-# Auth Service Context — User Profile Provisioning Integration
+# Auth Service Context — Profile Provisioning Integration
 
 ## Purpose
 
 Use this document as the integration handoff when implementing the Kotlin Auth
-Service's connection to the Scala User Service. It captures the existing
-architecture decisions and the User Service contract relevant to profile
+Service's connection to the Scala Profile Service. It captures the existing
+architecture decisions and the Profile Service contract relevant to profile
 provisioning and JWT compatibility.
 
-The Auth Service owns identity, credentials, roles, and token issuance. The User
+The Auth Service owns identity, credentials, roles, and token issuance. The Profile
 Service owns profile data. Each service writes only to its own database; do not
 add cross-service database access or cross-database foreign keys.
 
@@ -16,7 +16,7 @@ add cross-service database access or cross-database foreign keys.
 - The Auth Service is Kotlin with Spring Boot.
 - It generates the user's UUID and remains authoritative for that identity.
 - It owns authentication data and issues JWTs.
-- The User Service's gRPC server is the internal API for creating a default
+- The Profile Service's gRPC server is the internal API for creating a default
   profile.
 
 The Auth Service source tree is not part of this repository. Verify its current
@@ -38,7 +38,7 @@ Call provisioning only after the identity transaction commits. Do not hold an
 Auth database transaction open while making the network call. Do not generate a
 second UUID for the profile.
 
-The User Service operation is idempotent: retrying for an existing UUID returns
+The Profile Service operation is idempotent: retrying for an existing UUID returns
 the existing profile and does not overwrite customized profile fields. This
 makes retries safe from the profile-data perspective, including when a deadline
 or connection failure leaves the client unsure whether the first call reached
@@ -56,18 +56,18 @@ different identity or falsely reporting an ordinary duplicate-email error).
 ## gRPC contract
 
 The source of truth is
-[`src/main/protobuf/user_profile.proto`](./src/main/protobuf/user_profile.proto):
+[`src/main/protobuf/profile.proto`](./src/main/protobuf/profile.proto):
 
-- Package: `dwp.userservice.v1`
-- JVM package option: `com.devopswithprashant.user.v1`
-- Service: `UserProfileService`
+- Package: `dwp.profileservice.v1`
+- JVM package option: `com.devopswithprashant.profile.v1`
+- Service: `ProfileService`
 - RPC: `CreateDefaultProfile`
 - Request: `CreateDefaultProfileRequest { string user_id = 1; }`
 - Response: `CreateDefaultProfileResponse { string user_id = 1; }`
 - Both `user_id` values carry the canonical string representation of the Auth
   user's UUID.
 - Fully qualified RPC path:
-  `/dwp.userservice.v1.UserProfileService/CreateDefaultProfile`
+  `/dwp.profileservice.v1.ProfileService/CreateDefaultProfile`
 
 The protobuf field is snake_case on the wire and generated client property
 naming depends on the chosen generator. The server parses a UUID and compares
@@ -79,7 +79,7 @@ generator/client discrepancies.
 
 Generate a Kotlin/Java gRPC client from this shared proto using tooling
 compatible with the Auth Service's build. Do not hand-maintain a duplicate
-contract. The User Service uses fs2-grpc/ScalaPB internally; the Auth Service
+contract. The Profile Service uses fs2-grpc/ScalaPB internally; the Auth Service
 should generate and consume JVM client stubs appropriate to its Kotlin stack.
 Check the Auth Service's existing Gradle/Maven plugins and gRPC dependencies
 before selecting a generator, and keep generated sources/build outputs out of
@@ -87,13 +87,13 @@ handwritten source control unless that repository's conventions require
 otherwise. Verify generated package, method name, and wire compatibility with
 the RPC path above.
 
-The User Service binds its gRPC listener to `GRPC_PORT`, default `9090`.
+The Profile Service binds its gRPC listener to `GRPC_PORT`, default `9090`.
 Configure the Auth Service's target address and port through environment or
 service configuration; do not assume `localhost` outside a local development
 setup. Confirm the deployed service-discovery name, network access, and
 transport security before deployment.
 
-The current User Service server does not configure gRPC TLS or authenticate
+The current Profile Service server does not configure gRPC TLS or authenticate
 callers. Treat it as a trusted-network-only endpoint until both sides agree on
 and implement service authentication and transport protection; do not expose
 the plaintext listener to an untrusted network. JWT bearer tokens used by
@@ -142,7 +142,7 @@ operator can reconcile pending provisioning.
 
 ## JWT compatibility
 
-The User Service validates tokens using these claims:
+The Profile Service validates tokens using these claims:
 
 - Algorithm: `HS384`
 - Issuer: `devopswithprashant-auth`
@@ -152,7 +152,7 @@ The User Service validates tokens using these claims:
 - Issued-at (`iat`): if supplied, must not be in the future
 - Not-before (`nbf`): must not be in the future when supplied
 
-The User Service requires `JWT_SECRET` from its runtime environment and
+The Profile Service requires `JWT_SECRET` from its runtime environment and
 currently requires at least 48 UTF-8 bytes for HS384. The Auth Service and User
 Service must use the same secret, provisioned through the platform's approved
 secret-management mechanism. Never place the secret in source code, this
@@ -186,7 +186,7 @@ Also decide whether any provisioning-pending state belongs in the Auth
 database/domain model, what duplicate-registration/login behavior is while
 provisioning is pending, and what operational signal marks the identity fully
 provisioned. These decisions are Auth Service behavior; they do not require a
-User Service code change unless the RPC contract proves insufficient.
+Profile Service code change unless the RPC contract proves insufficient.
 
 Do not imply that rolling back the Auth transaction is possible after commit.
 At minimum, make retries use the original UUID, preserve idempotency, log
@@ -200,9 +200,9 @@ an in-memory retry.
 - [ ] Inspect the Auth Service repository's current registration transaction,
       identity model, configuration, and generated gRPC conventions before
       implementation.
-- [ ] Share and generate stubs from the User Service proto; verify Kotlin
+- [ ] Share and generate stubs from the Profile Service proto; verify Kotlin
       interoperability and the generated RPC path.
-- [ ] Add configurable User Service target, finite RPC deadline, and bounded
+- [ ] Add configurable Profile Service target, finite RPC deadline, and bounded
       retry/backoff policy; handle ambiguous deadlines/transport failures
       idempotently.
 - [ ] Invoke profile provisioning after successful identity commit using the
@@ -222,13 +222,13 @@ an in-memory retry.
 - [ ] Verify service discovery, network policy, and the documented operational
       configuration for each deployment environment.
 
-## Related User Service references
+## Related Profile Service references
 
 - [`context.md`](./context.md) is the broader project blueprint and source of
   architecture decisions.
-- [`src/main/protobuf/user_profile.proto`](./src/main/protobuf/user_profile.proto)
+- [`src/main/protobuf/profile.proto`](./src/main/protobuf/profile.proto)
   is the profile-provisioning contract.
-- [`src/main/scala/com/devopswithprashant/service/user/UserProfileGrpcService.scala`](./src/main/scala/com/devopswithprashant/service/user/UserProfileGrpcService.scala)
+- [`src/main/scala/com/devopswithprashant/service/profile/ProfileGrpcService.scala`](./src/main/scala/com/devopswithprashant/service/profile/ProfileGrpcService.scala)
   implements the RPC and maps failures to gRPC statuses.
-- The User Service gRPC listener defaults to port `9090`; its JWT configuration
+- The Profile Service gRPC listener defaults to port `9090`; its JWT configuration
   is named `JWT_SECRET`.

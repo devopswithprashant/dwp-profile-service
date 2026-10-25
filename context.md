@@ -1,13 +1,13 @@
 # DevOps with Prashant
-## User Service — Development Blueprint and Project Handoff
+## Profile Service — Development Blueprint and Project Handoff
 
 **Document purpose:** Preserve the complete requirements, architecture, implementation plan, and current development status so development can resume in a future conversation.
 
 **Project:** DevOps with Prashant — Microservices Cloud Platform  
-**Service:** User Service  
+**Service:** Profile Service
 **Language:** Scala 3  
 **Current development phase:** Phase 11 — Logging, Error Handling, and Observability
-**Current implementation status:** Phases 1–8, 10, and 11 are implemented and verified. Phase 9's Auth-side client/registration work belongs in the separate Auth Service repository; the User Service provides the gRPC contract/server. The current 55-test suite covers handwritten User Service code at 96.17% statement and 94.20% branch coverage, excluding generated ScalaPB code.
+**Current implementation status:** Phases 1–8, 10, and 11 are implemented and verified. Phase 9's Auth-side client/registration work belongs in the separate Auth Service repository; the Profile Service provides the gRPC contract/server. The current 55-test suite covers handwritten Profile Service code at 96.17% statement and 94.20% branch coverage, excluding generated ScalaPB code.
 
 ---
 
@@ -19,15 +19,15 @@ We are building a microservices-based platform for the DevOps with Prashant webs
 
 The platform includes a frontend and multiple backend services responsible for different business capabilities.
 
-The User Service is responsible for managing user profile information independently of authentication.
+The Profile Service is responsible for managing user profile information independently of authentication.
 
 The broader platform already has an Auth Service and a Blog Service, with additional infrastructure and service integrations planned.
 
-The User Service is being developed in Scala 3 to introduce Scala into the platform and provide hands-on experience with its ecosystem, functional programming concepts, database integration, REST APIs, and gRPC.
+The Profile Service is being developed in Scala 3 to introduce Scala into the platform and provide hands-on experience with its ecosystem, functional programming concepts, database integration, REST APIs, and gRPC.
 
 ## 1.2 Why are we building this service?
 
-The User Service will:
+The Profile Service will:
 
 1. Maintain user profile information independently of authentication credentials.
 2. Provide REST APIs for the frontend to retrieve and update profile information.
@@ -71,19 +71,19 @@ The platform uses a microservices architecture.
               | Synchronous gRPC
               | Protobuf contract
               v
-          User Service
+          Profile Service
           Scala 3 + http4s
               |
               v
-          User Database
+          Profile Database
           PostgreSQL
 ```
 
 The API Gateway is planned. Its exact routing, authentication enforcement, and deployment design will be finalized in the relevant phase.
 
-The Auth Service communicates directly with the User Service over gRPC for internal profile provisioning.
+The Auth Service communicates directly with the Profile Service over gRPC for internal profile provisioning.
 
-The frontend consumes REST APIs rather than calling the User Service's internal gRPC interface directly.
+The frontend consumes REST APIs rather than calling the Profile Service's internal gRPC interface directly.
 
 ## 2.2 Service ownership
 
@@ -93,14 +93,14 @@ Each microservice owns its data and database.
 |---|---|---|---|
 | Auth Service | Kotlin + Spring Boot | Authentication, credentials, identity, roles, JWT issuance | Auth database |
 | Blog Service | Java + Spring Boot | Blog posts and blog content | Blog database |
-| User Service | Scala 3 + http4s | User profile information and preferences | User database |
+| Profile Service | Scala 3 + http4s | Profile information and preferences | Profile database |
 | Frontend | React/Next.js | User interface | No direct database access |
 
 ### Database isolation
 
-The User Service must not access the Auth Service's database directly.
+The Profile Service must not access the Auth Service's database directly.
 
-Likewise, the Auth Service must not write directly to the User Service's database.
+Likewise, the Auth Service must not write directly to the Profile Service's database.
 
 Services communicate through defined APIs.
 
@@ -108,25 +108,25 @@ This avoids tight coupling between databases and preserves service ownership.
 
 ---
 
-# 3. User Service Requirements
+# 3. Profile Service Requirements
 
 ## 3.1 Functional requirements
 
-The User Service must eventually support the following capabilities.
+The Profile Service must eventually support the following capabilities.
 
 ### A. Profile creation
 
-When a user registers through the Auth Service, the Auth Service will call the User Service's internal gRPC API to create a default profile.
+When a user registers through the Auth Service, the Auth Service will call the Profile Service's internal gRPC API to create a default profile.
 
 The profile must use the same user UUID generated by the Auth Service.
 
-The User Service must not independently generate a different identity for that user.
+The Profile Service must not independently generate a different identity for that user.
 
 ### B. Retrieve the current user's profile
 
 The frontend should be able to retrieve the profile of the authenticated user through:
 
-`GET /api/v1/users/me`
+`GET /api/v1/profiles/me`
 
 The authenticated identity will be derived from a validated JWT rather than trusted from arbitrary client-supplied identifiers.
 
@@ -134,7 +134,7 @@ The authenticated identity will be derived from a validated JWT rather than trus
 
 The frontend should be able to update the authenticated user's profile through:
 
-`PUT /api/v1/users/me`
+`PUT /api/v1/profiles/me`
 
 The precise request schema and validation rules will be defined when the REST API is implemented.
 
@@ -142,7 +142,7 @@ The precise request schema and validation rules will be defined when the REST AP
 
 The service should support:
 
-`GET /api/v1/users/{userId}`
+`GET /api/v1/profiles/{profileId}`
 
 This endpoint is intended to retrieve public profile information for a specified user.
 
@@ -166,11 +166,11 @@ The Auth Service already owns authentication-related information.
 
 Its existing identity is represented by a UUID.
 
-The User Service will use this UUID as its `user_id`.
+The Profile Service will use this UUID as its `user_id`.
 
-The UUID is an external identity reference from the User Service's perspective.
+The UUID is an external identity reference from the Profile Service's perspective.
 
-The User Service will not create a second independent identity for the same person.
+The Profile Service will not create a second independent identity for the same person.
 
 ## 4.2 Auth Service data
 
@@ -194,11 +194,11 @@ The configured audience is:
 
 The JWT subject contains the user's UUID.
 
-The User Service will validate these claims when authentication middleware is implemented.
+The Profile Service will validate these claims when authentication middleware is implemented.
 
-## 4.3 User Service data
+## 4.3 Profile Service data
 
-The User Service owns profile-specific information, such as:
+The Profile Service owns profile-specific information, such as:
 
 - User UUID reference
 - Display name
@@ -211,7 +211,7 @@ The User Service owns profile-specific information, such as:
 
 Username and email will not be duplicated by default.
 
-If the product later requires a public username or handle in the User Service, its ownership and synchronization rules must be explicitly decided.
+If the product later requires a public username or handle in the Profile Service, its ownership and synchronization rules must be explicitly decided.
 
 Email addresses should remain private unless an explicit product requirement says otherwise.
 
@@ -221,7 +221,7 @@ Email addresses should remain private unless an explicit product requirement say
 
 ## 5.1 Database
 
-The User Service will use a dedicated PostgreSQL database.
+The Profile Service will use a dedicated PostgreSQL database.
 
 Database name:
 
@@ -233,9 +233,12 @@ The database is separate from the Auth Service database and the Blog Service dat
 
 ## 5.2 Profile table
 
-The initial profile table will be named:
+The current profile table is named:
 
-`user_profiles`
+`profiles`
+
+The original V1 migration creates `user_profiles`; V2 renames it to `profiles`
+without discarding existing profile data.
 
 The approved and migrated schema is:
 
@@ -254,7 +257,7 @@ Both JSONB columns have database checks requiring a JSON object. The primary key
 
 ### Important database rule
 
-The User Service must not introduce a cross-database foreign key to the Auth Service database.
+The Profile Service must not introduce a cross-database foreign key to the Auth Service database.
 
 The `user_id` is an externally owned identity reference.
 
@@ -289,23 +292,23 @@ Planned endpoints:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | GET | `/health` | Basic application health response |
-| GET | `/api/v1/users/me` | Retrieve the authenticated user's profile |
-| PUT | `/api/v1/users/me` | Update the authenticated user's profile |
-| GET | `/api/v1/users/{userId}` | Retrieve a public profile |
+| GET | `/api/v1/profiles/me` | Retrieve the authenticated user's profile |
+| PUT | `/api/v1/profiles/me` | Update the authenticated user's profile |
+| GET | `/api/v1/profiles/{profileId}` | Retrieve a public profile |
 
 The `/health` endpoint is already implemented.
 
-`GET /api/v1/users/{userId}` is implemented. It accepts canonical UUIDs, returns only the public profile projection, returns HTTP 400 for malformed UUIDs, and returns HTTP 404 when the profile does not exist.
+`GET /api/v1/profiles/{profileId}` is implemented. It accepts canonical UUIDs, returns only the public profile projection, returns HTTP 400 for malformed UUIDs, and returns HTTP 404 when the profile does not exist.
 
-`GET /api/v1/users/me` and `PUT /api/v1/users/me` require a verified Bearer JWT and use its UUID subject; client-supplied identities are not trusted. Missing or invalid tokens return HTTP 401.
+`GET /api/v1/profiles/me` and `PUT /api/v1/profiles/me` require a verified Bearer JWT and use its UUID subject; client-supplied identities are not trusted. Missing or invalid tokens return HTTP 401.
 
-`UserProfileUpdateRequest` defines the update JSON contract: `preferences` and `socialLinks` are required JSON objects; omitted nullable string fields decode to `None` and therefore clear those fields on update. Updates allow `displayName` up to 100 characters, `bio` up to 500 characters, and `avatarUrl` up to 2048 characters as an absolute HTTPS URL without user information.
+`ProfileUpdateRequest` defines the update JSON contract: `preferences` and `socialLinks` are required JSON objects; omitted nullable string fields decode to `None` and therefore clear those fields on update. Updates allow `displayName` up to 100 characters, `bio` up to 500 characters, and `avatarUrl` up to 2048 characters as an absolute HTTPS URL without user information.
 
 The public profile response includes only the user UUID, display name, bio, avatar URL, and creation timestamp. Preferences and social links are excluded.
 
 ## 6.2 gRPC
 
-gRPC is the internal service-to-service communication mechanism selected for communication between the Auth Service and the User Service.
+gRPC is the internal service-to-service communication mechanism selected for communication between the Auth Service and the Profile Service.
 
 Protobuf will define the service contract.
 
@@ -324,14 +327,14 @@ User Registration Request
   Commit Auth Database
           |
           v
-  Call User Service
+  Call Profile Service
   CreateDefaultProfile
           |
           v
      gRPC + Protobuf
           |
           v
-      User Service
+      Profile Service
           |
           v
   Create Default Profile
@@ -353,7 +356,7 @@ Synchronous gRPC does not make two separate database transactions atomic.
 For example:
 
 1. The Auth Service creates a user and commits the Auth database transaction.
-2. The User Service is unavailable.
+2. The Profile Service is unavailable.
 3. The profile cannot be created immediately.
 
 This failure must be handled explicitly.
@@ -368,7 +371,7 @@ A durable provisioning status or retry mechanism may be introduced if required. 
 
 # 7. Authentication and JWT Validation
 
-The User Service will eventually validate JWTs issued by the Auth Service.
+The Profile Service will eventually validate JWTs issued by the Auth Service.
 
 The existing Auth Service uses:
 
@@ -377,7 +380,7 @@ The existing Auth Service uses:
 - Audience: `devopswithprashant-platform`
 - Subject: User UUID
 
-The User Service must validate the token's signature, issuer, audience, and relevant time claims.
+The Profile Service must validate the token's signature, issuer, audience, and relevant time claims.
 
 The signing secret must be provided through secure configuration, not hardcoded into the source code.
 
@@ -389,7 +392,7 @@ A future migration to asymmetric signing may be considered separately, but it is
 
 # 8. Technology Stack
 
-## 8.1 Current User Service stack
+## 8.1 Current Profile Service stack
 
 | Component | Selected technology | Status |
 |---|---|---|
@@ -434,13 +437,13 @@ These values reflect the latest confirmed project configuration and environment 
 
 # 9. Current Project Location and Structure
 
-Project root:
+Project workspace:
 
 `/Users/prashant/codebase/scala/dwp-user-service`
 
 Main source package:
 
-`com.devopswithprashant.service.user`
+`com.devopswithprashant.service.profile`
 
 Current source structure:
 
@@ -456,24 +459,25 @@ dwp-user-service/
             └── com/
                 └── devopswithprashant/
                     └── service/
-                        └── user/
+                        └── profile/
                             ├── Main.scala
-                            ├── DwpuserserviceServer.scala
-                            ├── DwpuserserviceRoutes.scala
-                            ├── UserServiceConfig.scala
+                            ├── DwpProfileServiceServer.scala
+                            ├── DwpProfileServiceRoutes.scala
+                            ├── ProfileServiceConfig.scala
                             ├── DatabaseTransactor.scala
                             ├── DatabaseMigrations.scala
-                            ├── UserProfile.scala
-                            ├── UserProfileRepository.scala
-                            ├── UserProfileService.scala
-                            ├── UserProfileApi.scala
-                            └── UserProfileGrpcService.scala
+                            ├── Profile.scala
+                            ├── ProfileRepository.scala
+                            ├── ProfileService.scala
+                            ├── ProfileApi.scala
+                            └── ProfileGrpcService.scala
         └── protobuf/
-            └── user_profile.proto
+            └── profile.proto
         └── resources/
             └── db/
                 └── migration/
-                    └── V1__Create_user_profiles.sql
+                    ├── V1__Create_user_profiles.sql
+                    └── V2__Rename_user_profiles_to_profiles.sql
 ```
 
 The exact current contents of the files should be inspected before future modifications.
@@ -490,11 +494,11 @@ Application entry point.
 
 It starts the server using:
 
-`DwpuserserviceServer.run[IO]`
+`DwpProfileServiceServer.run[IO]`
 
 This file was working before database integration and should not need modification for the current transactor correction.
 
-## 10.2 `DwpuserserviceServer.scala`
+## 10.2 `DwpProfileServiceServer.scala`
 
 Responsible for:
 
@@ -507,7 +511,7 @@ Responsible for:
 
 The server loads configuration, applies Flyway migrations, initializes the transactor from `config.database`, executes `SELECT 1`, and only then starts the HTTP server. The transactor is scoped with `Resource.use`.
 
-## 10.3 `DwpuserserviceRoutes.scala`
+## 10.3 `DwpProfileServiceRoutes.scala`
 
 Currently defines:
 
@@ -518,7 +522,7 @@ The endpoint returns:
 ```json
 {
   "status": "UP",
-  "service": "dwp-user-service"
+  "service": "dwp-profile-service"
 }
 ```
 
@@ -526,7 +530,7 @@ The endpoint was manually verified and returned HTTP 200.
 
 Unknown endpoints correctly return HTTP 404.
 
-## 10.4 `UserServiceConfig.scala`
+## 10.4 `ProfileServiceConfig.scala`
 
 Responsible for reading configuration from environment variables.
 
@@ -564,7 +568,7 @@ Database credentials must not be committed to source control or pasted into chat
 Current implementation:
 
 ```scala
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.{Async, Resource}
 import doobie.hikari.HikariTransactor
@@ -590,35 +594,35 @@ The transactor successfully connected to local PostgreSQL during Phase 2 verific
 
 Applies versioned migrations from `classpath:db/migration` to the `public` schema before the transactor and HTTP server start. Flyway failures propagate and prevent the service from starting.
 
-## 10.7 `V1__Create_user_profiles.sql`
+## 10.7 `V1__Create_user_profiles.sql` and `V2__Rename_user_profiles_to_profiles.sql`
 
-Creates `user_profiles` with a UUID primary key, optional profile fields, JSONB object columns and checks, and timezone-aware creation/update timestamps. Applied and verified against local PostgreSQL 15.13.
+V1 creates the original `user_profiles` table with a UUID primary key, optional profile fields, JSONB object columns and checks, and timezone-aware creation/update timestamps. V2 renames it to `profiles` and updates the constraint names while preserving existing data.
 
-## 10.8 `UserProfile.scala`
+## 10.8 `Profile.scala`
 
-Defines the full `UserProfile` record, a `PublicUserProfile` projection that excludes preferences and social links, and `UserProfileUpdate`. Update requests replace mutable fields; `None` clears a nullable field.
+Defines the full `Profile` record, a `PublicProfile` projection that excludes preferences and social links, and `ProfileUpdate`. Update requests replace mutable fields; `None` clears a nullable field.
 
-## 10.9 `UserProfileRepository.scala`
+## 10.9 `ProfileRepository.scala`
 
-Defines `UserProfileRepository[F]` and its Doobie implementation. It provides full and public profile lookup, idempotent default-profile creation, and profile updates. Database operations use Doobie `ConnectionIO` and are kept separate from HTTP routing.
+Defines `ProfileRepository[F]` and its Doobie implementation. It provides full and public profile lookup, idempotent default-profile creation, and profile updates. Database operations use Doobie `ConnectionIO` and are kept separate from HTTP routing.
 
-## 10.10 `UserProfileService.scala`
+## 10.10 `ProfileService.scala`
 
 Provides transport-independent profile use cases: idempotent default creation, private/public profile retrieval, and validated updates. Returns explicit `ProfileNotFound` and `InvalidUpdate` business errors. It validates that preferences and social links are JSON objects, matching the database contract, as well as approved text-length and HTTPS avatar URL constraints.
 
-## 10.11 `UserProfileApi.scala`
+## 10.11 `ProfileApi.scala`
 
 Defines the public response encoder and profile update request decoder. The public response uses an explicit allowlist. The update decoder requires object-valued `preferences` and `socialLinks`; omitted nullable string fields decode to `None`.
 
-## 10.12 `DwpuserserviceRoutes.scala`
+## 10.12 `DwpProfileServiceRoutes.scala`
 
-Defines `/health` and `GET /api/v1/users/{userId}`. It validates canonical UUID path values and maps malformed identifiers to HTTP 400 and missing profiles to HTTP 404. Both `/me` routes explicitly return HTTP 501 until JWT validation is integrated.
+Defines `/health`, `/health/live`, and profile REST routes. The `/me` routes use the verified JWT subject; the public route returns only the public profile projection.
 
-## 10.13 `user_profile.proto`
+## 10.13 `profile.proto`
 
-Defines `dwp.userservice.v1.UserProfileService/CreateDefaultProfile`. Request and response each carry `user_id` as a UUID-formatted string. This file is the API contract to share with the Auth Service.
+Defines `dwp.profileservice.v1.ProfileService/CreateDefaultProfile`. Request and response each carry `user_id` as a UUID-formatted string. This file is the API contract to share with the Auth Service.
 
-## 10.14 `UserProfileGrpcService.scala`
+## 10.14 `ProfileGrpcService.scala`
 
 Implements the generated fs2-grpc service and resource-managed Netty server. It validates canonical UUID strings and delegates creation to the idempotent application service. Invalid IDs map to `INVALID_ARGUMENT`; SQL/database failures map to retryable `UNAVAILABLE`; other non-fatal failures map to `INTERNAL`. Callers should use bounded retries for `UNAVAILABLE` only.
 
@@ -673,7 +677,7 @@ Completed:
 - Doobie version was changed to `1.0.0-RC12`.
 - The project compiled after the dependency correction.
 - `DatabaseConfig` was introduced.
-- `UserServiceConfig` was extended with database settings.
+- `ProfileServiceConfig` was extended with database settings.
 - `DatabaseTransactor.scala` was created and compiled.
 - The server initializes the transactor from `config.database`.
 - Startup executes `SELECT 1` through Doobie before binding the HTTP server; a failed connection or query prevents startup.
@@ -744,10 +748,10 @@ The exact package structure should be established based on the implementation ra
 
 Completed:
 
-- Added `UserProfile` with UUID, nullable display name/bio/avatar URL, Circe JSON preferences/social links, and `OffsetDateTime` timestamps.
-- Added `PublicUserProfile` that excludes preferences and social links.
-- Added `UserProfileUpdate`; `None` clears nullable fields while JSON objects are replaced as a whole.
-- Added the `UserProfileRepository[F]` algebra and `DoobieUserProfileRepository` implementation.
+- Added `Profile` with UUID, nullable display name/bio/avatar URL, Circe JSON preferences/social links, and `OffsetDateTime` timestamps.
+- Added `PublicProfile` that excludes preferences and social links.
+- Added `ProfileUpdate`; `None` clears nullable fields while JSON objects are replaced as a whole.
+- Added the `ProfileRepository[F]` algebra and `DoobieProfileRepository` implementation.
 - Implemented profile lookup by UUID, a separate public projection query, idempotent default-profile creation using `ON CONFLICT DO NOTHING`, and updates that set `updated_at = CURRENT_TIMESTAMP`.
 - Duplicate default-profile creation returns the existing profile without overwriting customized values.
 - Added the Doobie PostgreSQL Circe module for typed JSONB mappings.
@@ -771,7 +775,7 @@ This phase should establish the core profile behavior before REST endpoints are 
 
 Completed:
 
-- Added `UserProfileService` with default profile creation, full profile retrieval, public profile retrieval, and profile updates.
+- Added `ProfileService` with default profile creation, full profile retrieval, public profile retrieval, and profile updates.
 - Preserved idempotent create behavior through the repository, so repeated provisioning does not replace customized profile data.
 - Added business errors for missing profiles and invalid updates, plus field-specific validation details.
 - Validated JSONB-backed preferences and social links as JSON objects before repository updates; invalid updates return a business error without writing to the database.
@@ -785,9 +789,9 @@ Completed:
 
 Implement the frontend-facing endpoints:
 
-- `GET /api/v1/users/me`
-- `PUT /api/v1/users/me`
-- `GET /api/v1/users/{userId}`
+- `GET /api/v1/profiles/me`
+- `PUT /api/v1/profiles/me`
+- `GET /api/v1/profiles/{profileId}`
 
 Objectives:
 
@@ -802,13 +806,13 @@ Authentication middleware may be introduced in coordination with the JWT phase.
 
 Completed so far:
 
-- Added `PublicUserProfileResponse` with an explicit public-field encoder.
-- Added `UserProfileUpdateRequest` decoding. Preferences and social links must be JSON objects; omitted nullable string fields decode to `None`.
-- Implemented `GET /api/v1/users/{userId}` through the application service.
+- Added `PublicProfileResponse` with an explicit public-field encoder.
+- Added `ProfileUpdateRequest` decoding. Preferences and social links must be JSON objects; omitted nullable string fields decode to `None`.
+- Implemented `GET /api/v1/profiles/{profileId}` through the application service.
 - Validated canonical UUID path values; malformed IDs return HTTP 400 and missing profiles return HTTP 404.
 - Mapped profile service errors to JSON HTTP responses.
 - Wired the profile service and repository into the server lifecycle.
-- Implemented `GET /api/v1/users/me` and `PUT /api/v1/users/me` using the verified JWT subject, with 401 for absent or invalid tokens.
+- Implemented `GET /api/v1/profiles/me` and `PUT /api/v1/profiles/me` using the verified JWT subject, with 401 for absent or invalid tokens.
 - Update validation enforces display name ≤100 characters, bio ≤500 characters, and absolute HTTPS avatar URLs ≤2048 characters without user information.
 - Live HTTP/PostgreSQL checks verified private and public response shapes, unauthenticated rejection, successful update, malformed update rejection, field-policy failures, and not-found/error mapping. The temporary profile fixture was removed.
 - Authenticated route behavior is covered by the permanent Phase 10 route and JWT suites.
@@ -831,7 +835,7 @@ The final Protobuf contract should be shared with the Auth Service implementatio
 
 Completed:
 
-- Added `src/main/protobuf/user_profile.proto` with the JVM-compatible `dwp.userservice.v1.UserProfileService` and `CreateDefaultProfile` request/response messages.
+- Added `src/main/protobuf/profile.proto` with the JVM-compatible `dwp.profileservice.v1.ProfileService` and `CreateDefaultProfile` request/response messages.
 - Added `sbt-fs2-grpc` 3.1.2 and the Scala 3 `fs2-grpc-runtime` dependency. Protobuf/ScalaPB and fs2-grpc bindings are generated and compiled.
 - Added `GRPC_PORT` configuration, defaulting to 9090, with port-range validation.
 - Implemented a Netty-backed, Cats Effect resource-managed gRPC server and integrated it into application startup/shutdown alongside HTTP.
@@ -840,7 +844,7 @@ Completed:
 - Verified a live local gRPC client/server with PostgreSQL: initial and repeated creation succeeded, a customized display name was preserved, malformed UUID returned `INVALID_ARGUMENT`, and resource cleanup closed the pool. The temporary verifier and row were removed.
 - `sbt compile` succeeds with generated Protobuf code.
 
-Share [src/main/protobuf/user_profile.proto](./src/main/protobuf/user_profile.proto) with the Auth Service team as the contract. Provisioning still spans separate databases and is not atomic.
+Share [src/main/protobuf/profile.proto](./src/main/protobuf/profile.proto) with the Auth Service team as the contract. Provisioning still spans separate databases and is not atomic.
 
 ## Phase 8 — JWT Validation
 
@@ -869,7 +873,7 @@ Do not hardcode the signing secret.
 
 ## Phase 9 — Auth Service Integration
 
-**User Service status: Complete at the gRPC contract/server boundary. No further User Service implementation is currently required for the planned synchronous provisioning flow.**
+**Profile Service status: Complete at the gRPC contract/server boundary. No further Profile Service implementation is currently required for the planned synchronous provisioning flow.**
 
 The Auth Service implementation is owned by its Kotlin repository. The Auth
 Service should generate a client from this service's shared Protobuf contract
@@ -881,7 +885,7 @@ authentication or TLS.
 
 Auth Service implementation objectives:
 
-- Integrate the Kotlin Auth Service with the User Service gRPC API.
+- Integrate the Kotlin Auth Service with the Profile Service gRPC API.
 - Generate and consume compatible Protobuf client stubs.
 - Call profile provisioning after successful identity creation and database commit.
 - Handle gRPC errors and timeouts.
@@ -894,17 +898,17 @@ Because the services use separate databases, provisioning must not be treated as
 
 ## Phase 10 — Unit and Integration Testing
 
-**User Service status: Implemented and verified for the behavior in this repository.**
+**Profile Service status: Implemented and verified for the behavior in this repository.**
 
-The business logic and User Service API are implemented. Automated tests now cover the implemented behavior:
+The business logic and Profile Service API are implemented. Automated tests now cover the implemented behavior:
 
-- `UserProfileServiceSuite`: default creation, private/public lookup, not-found results, validation limits, Unicode code points, URL rules, JSON object validation, and persistence calls.
-- `UserProfileApiSuite`: public/private field allowlists, nullable fields, request decoding, required properties, and invalid JSON shapes.
+- `ProfileServiceSuite`: default creation, private/public lookup, not-found results, validation limits, Unicode code points, URL rules, JSON object validation, and persistence calls.
+- `ProfileApiSuite`: public/private field allowlists, nullable fields, request decoding, required properties, and invalid JSON shapes.
 - `JwtAuthenticatorSuite`: valid tokens; missing, malformed, wrong-signature, wrong-issuer/audience, expired/missing-expiration, future-time, and invalid-subject cases.
-- `DwpuserserviceRoutesSuite`: health, public/private access, authorization challenge and rejection, malformed UUIDs and request bodies, successful updates, validation failures, not-found responses, and unknown routes.
-- `UserProfileGrpcServiceSuite` and `UserProfileGrpcServerSuite`: gRPC success, UUID validation, status mapping, server binding, and client/server invocation.
+- `DwpProfileServiceRoutesSuite`: health, public/private access, authorization challenge and rejection, malformed UUIDs and request bodies, successful updates, validation failures, not-found responses, and unknown routes.
+- `ProfileGrpcServiceSuite` and `ProfileGrpcServerSuite`: gRPC success, UUID validation, status mapping, server binding, and client/server invocation.
 - `PostgresIntegrationSuite`: PostgreSQL 15 Testcontainers integration for migrations, transactor connectivity, repository reads/updates, default creation, retry idempotency, missing records, and JSONB constraints.
-- `UserServiceConfigSuite`: environment defaults/overrides, invalid ports/host, required credentials, and UTF-8 JWT secret length.
+- `ProfileServiceConfigSuite`: environment defaults/overrides, invalid ports/host, required credentials, and UTF-8 JWT secret length.
 
 Scoverage enforces at least 90% total statement coverage. Generated ScalaPB/protobuf classes are excluded because they are generated code, not project-authored behavior. The latest clean run measured **90.55% statement coverage** and **92.68% branch coverage** for handwritten production code. Commands: `sbt test` and `sbt clean coverage test coverageReport`.
 
@@ -912,7 +916,7 @@ Cross-service provisioning and its failure/recovery behavior are Auth Service
 responsibilities and are not part of this repository's test coverage. Add
 provisioning client and registration/recovery tests in the Auth Service
 repository when that integration is implemented; no Auth integration tests are
-pending in this User Service repository.
+pending in this Profile Service repository.
 
 ## Phase 11 — Logging, Error Handling, and Observability
 
@@ -1049,13 +1053,13 @@ Manual compilation and targeted runtime checks are still expected.
 
 - Auth Service owns authentication and identity.
 - Blog Service owns blog content.
-- User Service owns user profile information.
+- Profile Service owns user profile information.
 - Each service owns its own database.
 - Internal Auth-to-User communication uses gRPC.
 - Frontend-facing profile APIs use REST.
 - Do not add RabbitMQ to the initial profile-provisioning workflow.
 - Do not create cross-database foreign keys.
-- Do not duplicate authentication credentials in the User Service.
+- Do not duplicate authentication credentials in the Profile Service.
 
 ---
 
@@ -1085,11 +1089,11 @@ As of 18 October 2026:
 | Public profile REST endpoint | Implemented and verified against local PostgreSQL |
 | Authenticated `/me` REST endpoints | Implemented and verified with HS384 JWT validation |
 | REST request/response models | Implemented for public and private responses and update requests |
-| gRPC Protobuf contract | Implemented at `src/main/protobuf/user_profile.proto`; ready to share with Auth Service |
+| gRPC Protobuf contract | Implemented at `src/main/protobuf/profile.proto`; ready to share with Auth Service |
 | gRPC server | Implemented with fs2-grpc/Netty and verified using a live local client |
 | JWT validation | Implemented and verified |
-| User Service provisioning gRPC contract/server | Complete; Auth Service can integrate against the shared contract |
-| Auth Service gRPC client/registration integration | Owned by the separate Auth Service repository; not User Service work |
+| Profile Service provisioning gRPC contract/server | Complete; Auth Service can integrate against the shared contract |
+| Auth Service gRPC client/registration integration | Owned by the separate Auth Service repository; not Profile Service work |
 | Automated tests | 55 tests; 96.17% statement and 94.20% branch coverage for handwritten production code |
 | Structured JSON logging | Implemented to stdout; ready for central ELK collection |
 | Prometheus metrics | Implemented at `/metrics`; restrict scrape access at network/gateway layer |
@@ -1104,7 +1108,7 @@ The Docker image and CI workflow are implemented and verified. Configure the
 documented AWS/GitHub settings before enabling ECR publishing. EKS/Kubernetes,
 GitOps, and Argo CD are deferred. Implement Auth-owned provisioning in the
 Auth Service repository using [context-for-auth.md](./context-for-auth.md);
-return here only if that work requires a change to the User Service contract
+return here only if that work requires a change to the Profile Service contract
 or server.
 
 ---
@@ -1113,6 +1117,6 @@ or server.
 
 When returning to this project, provide this document and use the following continuation instruction:
 
-"Continue the DevOps with Prashant User Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8, 10, and 11 are implemented and verified. Phase 7 defines `src/main/protobuf/user_profile.proto` and a resource-managed gRPC server. Phase 6 public and JWT-protected REST routes are covered. Phase 10 has 55 tests and currently measures 96.17% statement and 94.20% branch coverage for handwritten production sources, excluding generated protobuf code. Phase 11 emits structured JSON logs to stdout for ELK collection, exposes bounded-cardinality Prometheus metrics at `/metrics`, and provides `/health/live` plus database-aware `/health` readiness. Phase 12 includes a multi-stage, non-root Distroless Docker image, GitHub Actions tests/coverage/image validation, and ECR publishing via OIDC. ECR account and role configuration is pending. Kubernetes/EKS, GitOps, and Argo CD deployment were deferred. Restrict `/metrics` to the Prometheus network path when deployment networking is configured. The User Service's Phase 9 contribution is complete at the gRPC contract/server boundary; Auth-owned registration integration remains in the separate Auth Service repository using `context-for-auth.md`. Preserve Scala 3 indentation and verify each step."
+"Continue the DevOps with Prashant Profile Service project using this development blueprint as the source of truth. Follow the existing architecture and development decisions. First verify current source and implementation status. Phases 1–8, 10, and 11 are implemented and verified. Phase 7 defines `src/main/protobuf/profile.proto` and a resource-managed gRPC server. Phase 6 public and JWT-protected REST routes are covered. Phase 10 has 55 tests and currently measures 96.17% statement and 94.20% branch coverage for handwritten production sources, excluding generated protobuf code. Phase 11 emits structured JSON logs to stdout for ELK collection, exposes bounded-cardinality Prometheus metrics at `/metrics`, and provides `/health/live` plus database-aware `/health` readiness. Phase 12 includes a multi-stage, non-root Distroless Docker image, GitHub Actions tests/coverage/image validation, and ECR publishing via OIDC. ECR account and role configuration is pending. Kubernetes/EKS, GitOps, and Argo CD deployment were deferred. Restrict `/metrics` to the Prometheus network path when deployment networking is configured. The Profile Service's Phase 9 contribution is complete at the gRPC contract/server boundary; Auth-owned registration integration remains in the separate Auth Service repository using `context-for-auth.md`. Preserve Scala 3 indentation and verify each step."
 
 This will establish the correct starting point without needing to repeat the earlier architecture discussion.

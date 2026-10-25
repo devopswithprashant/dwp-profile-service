@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.Sync
 import com.auth0.jwt.JWT

@@ -1,11 +1,11 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.Async
 import cats.syntax.all.*
-import com.devopswithprashant.user.v1.user_profile.{
+import com.devopswithprashant.profile.v1.profile.{
   CreateDefaultProfileRequest,
   CreateDefaultProfileResponse,
-  UserProfileServiceFs2Grpc
+  ProfileServiceFs2Grpc
 }
 import fs2.grpc.syntax.all.*
 import io.grpc.{Metadata, Status}
@@ -16,10 +16,10 @@ import org.slf4j.LoggerFactory
 import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
-final class UserProfileGrpcService[F[_]: Async](
-  profileService: UserProfileService[F],
+final class ProfileGrpcService[F[_]: Async](
+  profileService: ProfileService[F],
   metrics: ServiceMetrics
-) extends UserProfileServiceFs2Grpc[F, Metadata]:
+) extends ProfileServiceFs2Grpc[F, Metadata]:
 
   private val logger = LoggerFactory.getLogger("grpc.access")
 
@@ -95,15 +95,15 @@ final class UserProfileGrpcService[F[_]: Async](
       .toOption
       .filter(_.toString.equalsIgnoreCase(value))
 
-object UserProfileGrpcServer:
+object ProfileGrpcServer:
 
   def resource[F[_]: Async](
     port: Int,
-    profileService: UserProfileService[F],
+    profileService: ProfileService[F],
     metrics: ServiceMetrics
   ): cats.effect.Resource[F, io.grpc.Server] =
-    UserProfileServiceFs2Grpc
-      .bindServiceResource[F](new UserProfileGrpcService(profileService, metrics))
+    ProfileServiceFs2Grpc
+      .bindServiceResource[F](new ProfileGrpcService(profileService, metrics))
       .flatMap { service =>
         io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
           .forPort(port)

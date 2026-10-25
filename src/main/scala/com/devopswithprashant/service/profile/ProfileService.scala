@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.Applicative
 import cats.Functor
@@ -7,52 +7,52 @@ import io.circe.Json
 import java.net.URI
 import java.util.UUID
 
-sealed trait UserProfileServiceError
+sealed trait ProfileServiceError
 
-object UserProfileServiceError:
-  final case class ProfileNotFound(userId: UUID) extends UserProfileServiceError
+object ProfileServiceError:
+  final case class ProfileNotFound(userId: UUID) extends ProfileServiceError
   final case class InvalidUpdate(errors: List[ProfileUpdateValidationError])
-      extends UserProfileServiceError
+      extends ProfileServiceError
 
 final case class ProfileUpdateValidationError(field: String, message: String)
 
-final class UserProfileService[F[_]: Functor](
-  repository: UserProfileRepository[F]
+final class ProfileService[F[_]: Functor](
+  repository: ProfileRepository[F]
 ):
 
-  import UserProfileServiceError.*
+  import ProfileServiceError.*
 
-  def createDefaultProfile(userId: UUID): F[UserProfile] =
+  def createDefaultProfile(userId: UUID): F[Profile] =
     repository.createDefaultProfile(userId)
 
   def getProfile(
     userId: UUID
-  ): F[Either[UserProfileServiceError, UserProfile]] =
+  ): F[Either[ProfileServiceError, Profile]] =
     repository
       .findByUserId(userId)
       .map(_.toRight(ProfileNotFound(userId)))
 
   def getPublicProfile(
     userId: UUID
-  ): F[Either[UserProfileServiceError, PublicUserProfile]] =
+  ): F[Either[ProfileServiceError, PublicProfile]] =
     repository
       .findPublicByUserId(userId)
       .map(_.toRight(ProfileNotFound(userId)))
 
   def updateProfile(
     userId: UUID,
-    update: UserProfileUpdate
-  )(using Applicative[F]): F[Either[UserProfileServiceError, UserProfile]] =
+    update: ProfileUpdate
+  )(using Applicative[F]): F[Either[ProfileServiceError, Profile]] =
     validate(update) match
-      case Left(errors) => InvalidUpdate(errors).asLeft[UserProfile].pure[F]
+      case Left(errors) => InvalidUpdate(errors).asLeft[Profile].pure[F]
       case Right(validUpdate) =>
         repository
           .updateProfile(userId, validUpdate)
           .map(_.toRight(ProfileNotFound(userId)))
 
   private def validate(
-    update: UserProfileUpdate
-  ): Either[List[ProfileUpdateValidationError], UserProfileUpdate] =
+    update: ProfileUpdate
+  ): Either[List[ProfileUpdateValidationError], ProfileUpdate] =
     val errors =
       List(
         validateText("displayName", update.displayName, 100),

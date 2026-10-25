@@ -1,22 +1,22 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.IO
 import cats.syntax.all.*
-import com.devopswithprashant.user.v1.user_profile.CreateDefaultProfileRequest
+import com.devopswithprashant.profile.v1.profile.CreateDefaultProfileRequest
 import io.grpc.{Metadata, Status, StatusRuntimeException}
 import java.sql.SQLException
 import java.util.UUID
 import munit.CatsEffectSuite
 
-class UserProfileGrpcServiceSuite extends CatsEffectSuite:
+class ProfileGrpcServiceSuite extends CatsEffectSuite:
 
   import TestSupport.*
 
   private def service(
-    repository: UserProfileRepository[IO],
+    repository: ProfileRepository[IO],
     metrics: ServiceMetrics = new ServiceMetrics()
-  ): UserProfileGrpcService[IO] =
-    new UserProfileGrpcService[IO](new UserProfileService[IO](repository), metrics)
+  ): ProfileGrpcService[IO] =
+    new ProfileGrpcService[IO](new ProfileService[IO](repository), metrics)
 
   private def failureStatus(error: Throwable): Status.Code =
     Status.fromThrowable(error).getCode

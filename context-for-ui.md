@@ -1,14 +1,14 @@
-# UI Service Context — User Profile API Integration
+# UI Service Context — Profile API Integration
 
 ## Purpose and ownership
 
-Use this document when integrating a frontend/UI service with the Scala User
+Use this document when integrating a frontend/UI service with the Scala Profile
 Service. It describes the implemented HTTP API contract, authentication
 expectations, validation, and integration constraints.
 
-The Auth Service owns identity, credentials, login, and JWT issuance. The User
+The Auth Service owns identity, credentials, login, and JWT issuance. The Profile
 Service owns profile data. The UI must use the Auth Service for authentication
-and the User Service REST API for profile reads and updates. Do not connect the
+and the Profile Service REST API for profile reads and updates. Do not connect the
 UI directly to either database and do not send a user ID to identify the
 current user: `/me` derives identity from the verified JWT subject.
 
@@ -18,18 +18,18 @@ patterns before implementing.
 
 ## API base and routes
 
-The User Service exposes these routes:
+The Profile Service exposes these routes:
 
 | Method | Path | Authentication | Purpose |
 |---|---|---|---|
 | `GET` | `/health/live` | None | Process liveness probe |
 | `GET` | `/health` | None | Readiness probe including PostgreSQL |
 | `GET` | `/metrics` | None; restrict by network | Prometheus scrape endpoint; not a UI API |
-| `GET` | `/api/v1/users/me` | Bearer JWT | Get the signed-in user's full profile |
-| `PUT` | `/api/v1/users/me` | Bearer JWT | Replace mutable profile fields |
-| `GET` | `/api/v1/users/{userId}` | None | Get the public profile projection |
+| `GET` | `/api/v1/profiles/me` | Bearer JWT | Get the signed-in user's full profile |
+| `PUT` | `/api/v1/profiles/me` | Bearer JWT | Replace mutable profile fields |
+| `GET` | `/api/v1/profiles/{profileId}` | None | Get the public profile projection |
 
-Configure the User Service API origin through the UI's normal environment or
+Configure the Profile Service API origin through the UI's normal environment or
 deployment configuration. Do not hardcode a machine-local hostname in
 production code. The server's local HTTP port defaults to `8080`, but a
 deployment gateway or reverse proxy may expose a different origin or path
@@ -44,13 +44,13 @@ same-origin proxy/gateway pattern when one exists.
 
 ## Authentication and identity
 
-For `/api/v1/users/me`, send:
+For `/api/v1/profiles/me`, send:
 
 ```http
 Authorization: Bearer <access-token>
 ```
 
-The Auth Service issues the token. The User Service currently validates:
+The Auth Service issues the token. The Profile Service currently validates:
 
 - Algorithm: `HS384`
 - Issuer: `devopswithprashant-auth`
@@ -67,7 +67,7 @@ log/store tokens in URLs, analytics, error reports, or console output. Token
 storage strategy must follow the UI/Auth platform's security model; this API
 does not define browser token storage or refresh behavior.
 
-The User Service emits structured JSON request logs with method, normalized
+The Profile Service emits structured JSON request logs with method, normalized
 route, status, and duration. Its request instrumentation does not read/log
 headers or bodies. The UI must still avoid logging tokens or sensitive profile
 payloads in its own logs or telemetry.
@@ -81,7 +81,7 @@ The public profile route is unauthenticated and returns only allowlisted
 profile fields. It must not be used to retrieve private preferences or social
 links.
 
-## `GET /api/v1/users/me`
+## `GET /api/v1/profiles/me`
 
 Returns HTTP `200` and a full profile object:
 
@@ -114,7 +114,7 @@ failed. Do not silently create an identity or substitute another user's UUID;
 show an appropriate state and follow the platform's registration/recovery
 experience.
 
-## `PUT /api/v1/users/me`
+## `PUT /api/v1/profiles/me`
 
 Send JSON with `Content-Type: application/json`. The request has this shape:
 
@@ -148,7 +148,7 @@ Validation rules:
 - `preferences`: required JSON object.
 - `socialLinks`: required JSON object.
 
-The User Service validates URL shape, not that the remote image exists, is
+The Profile Service validates URL shape, not that the remote image exists, is
 safe to render, or has an allowed content type. Apply the UI's image-loading
 and content-security policies separately.
 
@@ -180,13 +180,13 @@ should use the UI's standard retry/error experience; do not report a failed
 save as successful. Repeating the same PUT body replaces the same profile
 values, but still sends a database update and may advance `updatedAt`.
 
-## `GET /api/v1/users/{userId}`
+## `GET /api/v1/profiles/{profileId}`
 
-The `userId` path segment must be a standard hyphenated UUID. No Bearer token
+The `profileId` path segment must be a standard hyphenated UUID. No Bearer token
 is required. Example:
 
 ```http
-GET /api/v1/users/8c0c0b42-ff2a-4d68-b90f-3b845ca8106a
+GET /api/v1/profiles/8c0c0b42-ff2a-4d68-b90f-3b845ca8106a
 ```
 
 HTTP `200` response:
@@ -203,7 +203,7 @@ HTTP `200` response:
 
 The public response intentionally excludes `preferences`, `socialLinks`, and
 `updatedAt`. Unset nullable text values are JSON `null`. A malformed UUID
-returns HTTP `400` with `error: "invalid_user_id"`; a syntactically valid UUID
+returns HTTP `400` with `error: "invalid_profile_id"`; a syntactically valid UUID
 without a profile returns HTTP `404` with `error: "profile_not_found"`.
 
 ## Common status handling
@@ -262,15 +262,15 @@ deployment/product details are not specified by this service:
 Do not block ordinary API-client scaffolding on visual/design decisions, but
 resolve the deployment and Auth/session details before end-to-end integration.
 
-## Related User Service references
+## Related Profile Service references
 
 - [`context.md`](./context.md) — full project blueprint and implemented phase
   status.
-- [`src/main/scala/com/devopswithprashant/service/user/DwpuserserviceRoutes.scala`](./src/main/scala/com/devopswithprashant/service/user/DwpuserserviceRoutes.scala) —
+- [`src/main/scala/com/devopswithprashant/service/profile/DwpProfileServiceRoutes.scala`](./src/main/scala/com/devopswithprashant/service/profile/DwpProfileServiceRoutes.scala) —
   HTTP routes and status mapping.
-- [`src/main/scala/com/devopswithprashant/service/user/UserProfileApi.scala`](./src/main/scala/com/devopswithprashant/service/user/UserProfileApi.scala) —
+- [`src/main/scala/com/devopswithprashant/service/profile/ProfileApi.scala`](./src/main/scala/com/devopswithprashant/service/profile/ProfileApi.scala) —
   request decoder and public/private response shapes.
-- [`src/main/scala/com/devopswithprashant/service/user/UserProfileService.scala`](./src/main/scala/com/devopswithprashant/service/user/UserProfileService.scala) —
+- [`src/main/scala/com/devopswithprashant/service/profile/ProfileService.scala`](./src/main/scala/com/devopswithprashant/service/profile/ProfileService.scala) —
   update validation limits and business errors.
-- [`src/main/scala/com/devopswithprashant/service/user/JwtAuthenticator.scala`](./src/main/scala/com/devopswithprashant/service/user/JwtAuthenticator.scala) —
+- [`src/main/scala/com/devopswithprashant/service/profile/JwtAuthenticator.scala`](./src/main/scala/com/devopswithprashant/service/profile/JwtAuthenticator.scala) —
   accepted JWT claims and verification rules.

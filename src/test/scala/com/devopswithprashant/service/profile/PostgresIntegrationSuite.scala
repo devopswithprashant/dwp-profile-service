@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.IO
 import doobie.implicits.*
@@ -37,13 +37,13 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
 
   private def withRepository[A](
     test: (
-      DoobieUserProfileRepository[IO],
+      DoobieProfileRepository[IO],
       doobie.util.transactor.Transactor[IO]
     ) => IO[A]
   ): IO[A] =
     DatabaseMigrations.migrate[IO](config) *>
       DatabaseTransactor.create[IO](config).use { transactor =>
-        test(new DoobieUserProfileRepository[IO](transactor), transactor)
+        test(new DoobieProfileRepository[IO](transactor), transactor)
       }
 
   private def unusedPort: IO[Int] =
@@ -61,6 +61,14 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
         sql"""
           SELECT EXISTS (
             SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'profiles'
+          )
+        """.query[Boolean].unique.transact(transactor)
+      }
+      legacyTableExists <- DatabaseTransactor.create[IO](config).use { transactor =>
+        sql"""
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
             WHERE table_schema = 'public' AND table_name = 'user_profiles'
           )
         """.query[Boolean].unique.transact(transactor)
@@ -69,6 +77,7 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
       assertEquals(first, Right(()))
       assertEquals(second, Right(()))
       assert(tableExists)
+      assert(!legacyTableExists)
 
   test("transactor connects and executes a query"):
     DatabaseTransactor.create[IO](config).use { transactor =>
@@ -83,7 +92,7 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
       grpcPort <- unusedPort
       host = Host.fromString("127.0.0.1").get
       http = Port.fromInt(httpPort).get
-      serviceConfig = UserServiceConfig(
+      serviceConfig = ProfileServiceConfig(
         host,
         http,
         grpcPort,
@@ -91,7 +100,7 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
         config,
         JwtConfig("test-only-secret-that-is-at-least-48-bytes-long!")
       )
-      result <- DwpuserserviceServer
+      result <- DwpProfileServiceServer
         .serverResource[IO](serviceConfig)
         .use { _ =>
           EmberClientBuilder.default[IO].build.use { client =>
@@ -126,7 +135,7 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
         _ <- repository.createDefaultProfile(userId)
         updated <- repository.updateProfile(
           userId,
-          UserProfileUpdate(
+          ProfileUpdate(
             Some("Customized"),
             Some("Keep this"),
             Some("https://example.test/avatar.png"),
@@ -151,11 +160,11 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
         _ <- repository.createDefaultProfile(userId)
         updated <- repository.updateProfile(
           userId,
-          UserProfileUpdate(None, Some("Updated bio"), None, Json.obj(), Json.obj())
+          ProfileUpdate(None, Some("Updated bio"), None, Json.obj(), Json.obj())
         )
         missing <- repository.updateProfile(
           missingId,
-          UserProfileUpdate(None, None, None, Json.obj(), Json.obj())
+          ProfileUpdate(None, None, None, Json.obj(), Json.obj())
         )
         privateProfile <- repository.findByUserId(userId)
         absent <- repository.findByUserId(missingId)
@@ -171,7 +180,7 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
     val userId = UUID.randomUUID()
     withRepository { (_, transactor) =>
       sql"""
-        INSERT INTO user_profiles (user_id, preferences, social_links)
+        INSERT INTO profiles (user_id, preferences, social_links)
         VALUES ($userId, ${Json.arr(Json.fromInt(1))}, ${Json.obj()})
       """.update.run
         .transact(transactor)

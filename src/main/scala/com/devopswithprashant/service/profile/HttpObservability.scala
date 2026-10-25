@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import cats.effect.Async
 import cats.syntax.all.*
@@ -61,7 +61,7 @@ object HttpObservability:
       case "/health" => "/health"
       case "/health/live" => "/health/live"
       case "/metrics" => "/metrics"
-      case "/api/v1/users/me" => "/api/v1/users/me"
-      case value if value.startsWith("/api/v1/users/") =>
-        "/api/v1/users/{userId}"
+      case "/api/v1/profiles/me" => "/api/v1/profiles/me"
+      case value if value.startsWith("/api/v1/profiles/") =>
+        "/api/v1/profiles/{profileId}"
       case _ => "unmatched"

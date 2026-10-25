@@ -9,7 +9,7 @@ lazy val root = (project in file("."))
   .enablePlugins(Fs2Grpc)
   .settings(
     organization := "com.devopswithprashant",
-    name := "dwp-user-service",
+    name := "dwp-profile-service",
     version := "0.0.1-SNAPSHOT",
     scalaVersion := "3.3.8",
     libraryDependencies ++= Seq(
@@ -36,9 +36,9 @@ lazy val root = (project in file("."))
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     assembly / mainClass := Some(
-      "com.devopswithprashant.service.user.Main"
+      "com.devopswithprashant.service.profile.Main"
     ),
-    assembly / assemblyJarName := "dwp-user-service.jar",
+    assembly / assemblyJarName := "dwp-profile-service.jar",
     assembly / test := {},
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", "services", _ @ _*) =>
@@ -52,7 +52,7 @@ lazy val root = (project in file("."))
       case _ =>
         MergeStrategy.first
     },
-    coverageExcludedPackages := "com\\.devopswithprashant\\.user\\.v1\\.user_profile.*",
+    coverageExcludedPackages := "com\\.devopswithprashant\\.profile\\.v1\\.profile.*",
     coverageMinimumStmtTotal := 90,
     coverageFailOnMinimum := true
   )

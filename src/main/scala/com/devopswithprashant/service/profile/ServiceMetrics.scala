@@ -1,4 +1,4 @@
-package com.devopswithprashant.service.user
+package com.devopswithprashant.service.profile
 
 import io.prometheus.client.{CollectorRegistry, Counter, Gauge, Histogram}
 import io.prometheus.client.exporter.common.TextFormat
@@ -12,7 +12,7 @@ final class ServiceMetrics(
     Counter
       .build()
       .name("http_server_requests_total")
-      .help("Total HTTP requests handled by the User Service.")
+      .help("Total HTTP requests handled by the Profile Service.")
       .labelNames("method", "route", "status")
       .register(registry)
 
@@ -29,7 +29,7 @@ final class ServiceMetrics(
     Counter
       .build()
       .name("grpc_server_requests_total")
-      .help("Total User Profile gRPC requests.")
+      .help("Total Profile Service gRPC requests.")
       .labelNames("method", "status")
       .register(registry)
 

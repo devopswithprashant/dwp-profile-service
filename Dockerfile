@@ -21,7 +21,7 @@ FROM gcr.io/distroless/base-debian12:nonroot AS runtime
 
 WORKDIR /app
 COPY --from=build --chown=nonroot:nonroot /opt/jre /opt/jre
-COPY --from=build /build/target/scala-3.3.8/dwp-user-service.jar /app/service.jar
+COPY --from=build /build/target/scala-3.3.8/dwp-profile-service.jar /app/service.jar
 
 EXPOSE 8080 9090
 

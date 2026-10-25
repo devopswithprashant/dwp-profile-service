@@ -12,7 +12,7 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'dwp-user-service' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'dwp-profile-service' }}
 
 jobs:
   validate:
@@ -43,9 +43,9 @@ jobs:
         with:
           context: .
           push: false
-          tags: dwp-user-service:ci
-          cache-from: type=gha,scope=user-service-image
-          cache-to: type=gha,mode=max,scope=user-service-image
+          tags: dwp-profile-service:ci
+          cache-from: type=gha,scope=profile-service-image
+          cache-to: type=gha,mode=max,scope=profile-service-image
 
   publish:
     name: Publish image to Amazon ECR
@@ -82,5 +82,5 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          cache-from: type=gha,scope=user-service-image
-          cache-to: type=gha,mode=max,scope=user-service-image
+          cache-from: type=gha,scope=profile-service-image
+          cache-to: type=gha,mode=max,scope=profile-service-image

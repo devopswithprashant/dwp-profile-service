@@ -1,6 +1,6 @@
-# DWP User Service
+# DWP Profile Service
 
-Scala 3 user-profile service with PostgreSQL persistence, REST and gRPC APIs,
+Scala 3 profile service with PostgreSQL persistence, REST and gRPC APIs,
 JWT validation, structured JSON logs, and Prometheus metrics.
 
 ## Build and test
@@ -21,7 +21,7 @@ uses a non-root Distroless base and excludes the build environment, source,
 build tools, and unused JDK modules.
 
 ```bash
-docker build -t dwp-user-service:local .
+docker build -t dwp-profile-service:local .
 ```
 
 ## Run locally
@@ -32,7 +32,7 @@ Generate a temporary local-only value with `openssl rand -base64 48` when
 testing without Auth Service tokens.
 
 ```bash
-docker run --rm --name dwp-user-service \
+docker run --rm --name dwp-profile-service \
   -p 8080:8080 -p 9090:9090 \
   -e DB_HOST=host.docker.internal \
   -e DB_PORT=5432 \
@@ -40,7 +40,7 @@ docker run --rm --name dwp-user-service \
   -e DB_USER=profileuser \
   -e DB_PASSWORD \
   -e JWT_SECRET \
-  dwp-user-service:local
+  dwp-profile-service:local
 ```
 
 Export `DB_PASSWORD` and `JWT_SECRET` in the invoking shell before running the
@@ -78,7 +78,7 @@ Configure these GitHub repository settings before enabling publishing:
 | Setting | Type | Example / placeholder |
 |---|---|---|
 | `AWS_REGION` | Actions variable | `us-east-1` — replace with the ECR region |
-| `ECR_REPOSITORY` | Actions variable | `dwp-user-service` |
+| `ECR_REPOSITORY` | Actions variable | `dwp-profile-service` |
 | `AWS_ROLE_TO_ASSUME` | Actions secret | `arn:aws:iam::<ACCOUNT_ID>:role/<GITHUB_ACTIONS_ECR_ROLE>` |
 
 Create the ECR repository in the selected AWS account/region before the first
@@ -86,7 +86,7 @@ publish. Configure image scanning on push and mutable tags if using `latest`:
 
 ```bash
 aws ecr create-repository \
-  --repository-name dwp-user-service \
+  --repository-name dwp-profile-service \
   --image-scanning-configuration scanOnPush=true \
   --image-tag-mutability MUTABLE \
   --region <AWS_REGION>

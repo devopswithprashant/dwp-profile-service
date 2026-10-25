@@ -1,7 +1,7 @@
 <configuration>
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-      <customFields>{"service":"dwp-user-service"}</customFields>
+      <customFields>{"service":"dwp-profile-service"}</customFields>
       <timeZone>UTC</timeZone>
       <includeContext>false</includeContext>
       <includeMdc>true</includeMdc>
