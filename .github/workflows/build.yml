@@ -65,8 +65,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Run tests
-        #run: sbt clean coverage test coverageReport
-        run: sbt clean test
+        run: sbt clean coverage test coverageReport
 
   docker:
     name: Publish image to Docker Hub
