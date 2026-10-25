@@ -237,8 +237,7 @@ The current profile table is named:
 
 `profiles`
 
-The original V1 migration creates `user_profiles`; V2 renames it to `profiles`
-without discarding existing profile data.
+The initial V1 migration creates `profiles` directly.
 
 The approved and migrated schema is:
 
@@ -476,8 +475,7 @@ dwp-user-service/
         └── resources/
             └── db/
                 └── migration/
-                    ├── V1__Create_user_profiles.sql
-                    └── V2__Rename_user_profiles_to_profiles.sql
+                    └── V1__Create_profiles.sql
 ```
 
 The exact current contents of the files should be inspected before future modifications.
@@ -594,9 +592,9 @@ The transactor successfully connected to local PostgreSQL during Phase 2 verific
 
 Applies versioned migrations from `classpath:db/migration` to the `public` schema before the transactor and HTTP server start. Flyway failures propagate and prevent the service from starting.
 
-## 10.7 `V1__Create_user_profiles.sql` and `V2__Rename_user_profiles_to_profiles.sql`
+## 10.7 `V1__Create_profiles.sql`
 
-V1 creates the original `user_profiles` table with a UUID primary key, optional profile fields, JSONB object columns and checks, and timezone-aware creation/update timestamps. V2 renames it to `profiles` and updates the constraint names while preserving existing data.
+Creates `profiles` with a UUID primary key, optional profile fields, JSONB object columns and checks, and timezone-aware creation/update timestamps.
 
 ## 10.8 `Profile.scala`
 
@@ -698,14 +696,14 @@ Objectives:
 
 - Add Flyway dependencies compatible with the selected Scala/JVM stack.
 - Configure database migrations.
-- Create the initial `user_profiles` table.
+- Create the initial `profiles` table.
 - Define primary keys, constraints, timestamps, JSONB columns, and appropriate indexes.
 - Run migrations against `profiledb`.
 - Verify that the database schema is created correctly.
 
 The initial migration should be versioned, for example:
 
-`V1__Create_user_profiles.sql`
+`V1__Create_profiles.sql`
 
 The final SQL schema was designed and reviewed before applying it.
 
@@ -714,7 +712,7 @@ Completed:
 - Reviewed and approved the schema before applying it.
 - Added Flyway 13.10.3 Core and PostgreSQL module dependencies.
 - Added `DatabaseMigrations`, which applies classpath migrations to the `public` schema before transactor initialization and HTTP startup.
-- Added `V1__Create_user_profiles.sql` with the approved columns, defaults, primary key, JSON-object checks, and timestamp fields.
+- Added `V1__Create_profiles.sql` with the approved columns, defaults, primary key, JSON-object checks, and timestamp fields.
 - Ran the application against local PostgreSQL 15.13 and successfully applied Flyway version 1.
 - Queried PostgreSQL metadata to verify columns, nullability, defaults, constraints, primary-key index, and the successful Flyway history entry.
 - Restarted the application; Flyway validated the applied migration and reported that the schema was up to date without rerunning it.

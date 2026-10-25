@@ -65,19 +65,10 @@ class PostgresIntegrationSuite extends CatsEffectSuite:
           )
         """.query[Boolean].unique.transact(transactor)
       }
-      legacyTableExists <- DatabaseTransactor.create[IO](config).use { transactor =>
-        sql"""
-          SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'user_profiles'
-          )
-        """.query[Boolean].unique.transact(transactor)
-      }
     yield
       assertEquals(first, Right(()))
       assertEquals(second, Right(()))
       assert(tableExists)
-      assert(!legacyTableExists)
 
   test("transactor connects and executes a query"):
     DatabaseTransactor.create[IO](config).use { transactor =>
