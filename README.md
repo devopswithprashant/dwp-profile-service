@@ -95,40 +95,23 @@ The service applies Flyway migrations on startup. It exposes `/health/live`,
 database-aware `/health`, and Prometheus `/metrics` over HTTP. Restrict
 `/metrics` to the trusted Prometheus network path in the deployment.
 
-## GitHub Actions and Amazon ECR
+## GitHub Actions and Docker Hub
 
-`.github/workflows/ci.yml` runs the test/coverage gate and builds the Docker
-image for pull requests and pushes to `main`. It publishes `main` images to
-ECR using GitHub Actions OIDC; no long-lived AWS keys are stored in GitHub.
+`.github/workflows/build.yml` runs the Scala compile and test jobs. After those
+pass on `main`, it reads the project version from sbt, builds the Docker image,
+and publishes it to Docker Hub tagged with `<version>-<commit-sha>`, the
+commit SHA, and `latest`.
 
-Configure these GitHub repository settings before enabling publishing:
+Configure these GitHub repository settings:
 
 | Setting | Type | Example / placeholder |
 |---|---|---|
-| `AWS_REGION` | Actions variable | `us-east-1` — replace with the ECR region |
-| `ECR_REPOSITORY` | Actions variable | `dwp-profile-service` |
-| `AWS_ROLE_TO_ASSUME` | Actions secret | `arn:aws:iam::<ACCOUNT_ID>:role/<GITHUB_ACTIONS_ECR_ROLE>` |
+| `DOCKERHUB_USERNAME` | Actions variable | Your Docker Hub username or organization |
+| `DOCKERHUB_REPOSITORY` | Actions variable | `dwp-profile-service` (optional; this is the default) |
+| `DOCKERHUB_TOKEN` | Actions secret | A Docker Hub access token with write access |
 
-Create the ECR repository in the selected AWS account/region before the first
-publish. Configure image scanning on push and mutable tags if using `latest`:
-
-```bash
-aws ecr create-repository \
-  --repository-name dwp-profile-service \
-  --image-scanning-configuration scanOnPush=true \
-  --image-tag-mutability MUTABLE \
-  --region <AWS_REGION>
-```
-
-The assumed role needs `ecr:GetAuthorizationToken` on `*`, and these image
-actions scoped to the repository: `ecr:BatchCheckLayerAvailability`,
-`ecr:BatchGetImage`, `ecr:CompleteLayerUpload`, `ecr:InitiateLayerUpload`,
-`ecr:PutImage`, and `ecr:UploadLayerPart`. Its OIDC trust policy should
-restrict access to this GitHub repository and the `main` branch, with the
-audience `sts.amazonaws.com`; for example, use the subject
-`repo:devopswithprashant/dwp-user-service:ref:refs/heads/main`.
-
-The workflow publishes both the commit SHA and `latest` tags. Update the
-repository variable, role ARN, region, and branch trigger to match the actual
-AWS account and GitHub configuration. Kubernetes/EKS manifests, GitOps, and
-Argo CD deployment are intentionally not included yet.
+Create the public Docker Hub repository before the first publish. The image
+will be available as
+`docker.io/<DOCKERHUB_USERNAME>/<DOCKERHUB_REPOSITORY>:<tag>`.
+Kubernetes manifests, GitOps, and Argo CD deployment are intentionally not
+included yet.
