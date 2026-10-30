@@ -90,8 +90,6 @@ jobs:
             dwp-profile-service:${{ github.sha }}
           # Optional: use GitHub Actions cache for build layers (fast incremental builds)
           cache-from: type=gha
-          cache-to: type=gha,mode=max,ignore-error=true
+          cache-to: type=gha,mode=max
       
       
-
-          

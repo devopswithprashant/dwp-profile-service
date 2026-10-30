@@ -98,5 +98,7 @@ jobs:
           tags: |
             docker.io/${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ needs.scala.outputs.projectVersion }}-${{ github.sha }}
             docker.io/${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:latest
-          cache-from: type=gha,scope=profile-service-image
-          cache-to: type=gha,mode=max,scope=profile-service-image,ignore-error=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+          
