@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+
+
+permissions:
+  contents: write
+
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+
+
+jobs:
+  release:
+    name: Create release tag
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: profiledb_test
+          POSTGRES_USER: profileuser_test
+          POSTGRES_PASSWORD: profiletestpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U profileuser_test -d profiledb_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PROFILE_TEST_DB_HOST: localhost
+      PROFILE_TEST_DB_PORT: 5432
+      PROFILE_TEST_DB_NAME: profiledb_test
+      PROFILE_TEST_DB_USER: profileuser_test
+      PROFILE_TEST_DB_PASSWORD: profiletestpassword
+    steps:
+      - name: Check release token
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::Configure the RELEASE_TOKEN secret so pushed tags can trigger workflows."
+            exit 1
+          fi
+
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: sbt
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Compile
+        run: sbt clean compile
+
+      - name: Run tests
+        run: sbt clean coverage test coverageReport
+
+      - name: Reject non-release dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch 'show Test / dependencyClasspath' | python3 -c '
+          import pathlib
+          import re
+          import sys
+
+          prerelease = re.compile(
+              r"(?i)(?:^|[.+-])(?:snapshot|alpha|beta|milestone|preview|"
+              r"canary|eap|ea|rc[0-9]*|m[0-9]+|pre(?:release)?|dev|nightly)"
+              r"(?:$|[.+-])"
+          )
+          dependencies = 0
+          prereleases = []
+
+          for line in sys.stdin:
+              marker = "Attributed("
+              if marker not in line:
+                  continue
+
+              path = line.split(marker, 1)[1].rsplit(")", 1)[0]
+              version = pathlib.Path(path).parent.name
+              dependencies += 1
+              if prerelease.search(version):
+                  prereleases.append(f"{path} (version {version})")
+
+          if dependencies == 0:
+              print("::error::Could not identify resolved dependencies from sbt output.", file=sys.stderr)
+              sys.exit(1)
+
+          if prereleases:
+              print("::error::Release blocked: non-release dependencies were resolved.", file=sys.stderr)
+              for dependency in prereleases:
+                  print(f"  {dependency}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Validated {dependencies} resolved dependencies; no prerelease versions found.")
+          '
+
+      - name: Prepare release versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=$(sbt -batch -error 'print version' | awk '/^[[:alnum:]][[:alnum:].+_-]*$/ { version = $0 } END { if (version == "") exit 1; print version }')
+          if [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-SNAPSHOT$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+          else
+            echo "::error::Expected an sbt version in X.Y.Z-SNAPSHOT format, got '$VERSION'."
+            exit 1
+          fi
+
+          RELEASE_VERSION="$MAJOR.$MINOR.$PATCH"
+          NEXT_PATCH=$((10#$PATCH + 1))
+          NEXT_VERSION="$MAJOR.$MINOR.$NEXT_PATCH-SNAPSHOT"
+
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            echo "::error::main changed during release setup; rerun the workflow."
+            exit 1
+          fi
+
+          EXISTING_TAG=$(git ls-remote --tags origin "refs/tags/v$RELEASE_VERSION")
+          if [[ -n "$EXISTING_TAG" ]]; then
+            echo "::error::Tag v$RELEASE_VERSION already exists."
+            exit 1
+          fi
+
+          printf 'release=%s\nnext=%s\n' "$RELEASE_VERSION" "$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit release version and create tag
+        env:
+          RELEASE_VERSION: ${{ steps.versions.outputs.release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          sed -i "s/version := \".*-SNAPSHOT\"/version := \"$RELEASE_VERSION\"/" build.sbt
+          git add build.sbt
+          git commit -m "[SBT Release Plugin] chore: release v$RELEASE_VERSION"
+          git push origin HEAD:main
+
+          git tag -a "v$RELEASE_VERSION" -m "Release v$RELEASE_VERSION"
+          git push origin "v$RELEASE_VERSION"
+
+      - name: Bump to next development version
+        env:
+          NEXT_VERSION: ${{ steps.versions.outputs.next }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i "s/version := \"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\"/version := \"$NEXT_VERSION\"/" build.sbt
+          git add build.sbt
+          git commit -m "[SBT Release Plugin] chore: start $NEXT_VERSION development"
+          git push origin HEAD:main

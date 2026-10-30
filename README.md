@@ -97,21 +97,40 @@ database-aware `/health`, and Prometheus `/metrics` over HTTP. Restrict
 
 ## GitHub Actions and Docker Hub
 
-`.github/workflows/build.yml` runs the Scala compile and test jobs. After those
-pass on `main`, it reads the project version from sbt, builds the Docker image,
-and publishes it to Docker Hub tagged with `<version>-<commit-sha>`, the
-commit SHA, and `latest`.
+`.github/workflows/build.yml` runs the Scala compile and test jobs on pushes
+and publishes the image to the non-production Docker Hub repository,
+`dwp-np-profile-service`, tagged with the sbt project version and commit SHA,
+and `latest`.
+The workflow skips commits prefixed with `[Gradle Release Plugin]`, which the
+release workflow uses for its version-only commits.
+
+`.github/workflows/tag-build-publish.yml` runs the same compile and test jobs
+when a `v*` tag is pushed. The tag must point to a commit on `main`; once the
+checks pass, the workflow publishes the image to
+`docker.io/<DOCKERHUB_USERNAME>/dwp-profile-service:<tag>` (for example,
+`docker.io/<DOCKERHUB_USERNAME>/dwp-profile-service:v1.0.0`).
+
+Run `.github/workflows/release.yml` manually from the `main` branch to release.
+It tests the project, changes an `X.Y.Z-SNAPSHOT` sbt version to `X.Y.Z`,
+commits that version, creates and pushes the `vX.Y.Z` tag, then commits and
+pushes the next patch version as `X.Y.(Z+1)-SNAPSHOT`. Before tagging, it
+checks the resolved Test classpath and fails if any dependency has a snapshot
+or prerelease version (such as milestone or release-candidate versions).
 
 Configure these GitHub repository settings:
 
 | Setting | Type | Example / placeholder |
 |---|---|---|
 | `DOCKERHUB_USERNAME` | Actions variable | Your Docker Hub username or organization |
-| `DOCKERHUB_REPOSITORY` | Actions variable | `dwp-profile-service` (optional; this is the default) |
 | `DOCKERHUB_TOKEN` | Actions secret | A Docker Hub access token with write access |
+| `RELEASE_TOKEN` | Actions secret | A token with repository contents write access |
 
-Create the public Docker Hub repository before the first publish. The image
-will be available as
-`docker.io/<DOCKERHUB_USERNAME>/<DOCKERHUB_REPOSITORY>:<tag>`.
+Create both Docker Hub repositories before their first publish. The images are
+available as
+`docker.io/<DOCKERHUB_USERNAME>/dwp-np-profile-service:<tag>` and
+`docker.io/<DOCKERHUB_USERNAME>/dwp-profile-service:<tag>`, respectively.
+`RELEASE_TOKEN` must be a personal access token or GitHub App token: commits and
+tags pushed with the default `GITHUB_TOKEN` do not trigger the tag publishing
+workflow.
 Kubernetes manifests, GitOps, and Argo CD deployment are intentionally not
 included yet.

@@ -18,6 +18,7 @@ env:
 jobs:
   scala:
     name: Compile and Test
+    if: ${{ !startsWith(github.event.head_commit.message, '[SBT Release Plugin]') }}
     runs-on: ubuntu-latest
     outputs:
       projectVersion: ${{ steps.project_version.outputs.version }}
