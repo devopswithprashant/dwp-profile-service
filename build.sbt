@@ -10,7 +10,7 @@ lazy val root = (project in file("."))
   .settings(
     organization := "com.devopswithprashant",
     name := "dwp-profile-service",
-    version := "0.0.1-SNAPSHOT",
+    version := "0.0.1",
     scalaVersion := "3.3.8",
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-ember-server" % Http4sVersion,
