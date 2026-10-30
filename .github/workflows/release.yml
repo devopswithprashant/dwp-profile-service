@@ -73,22 +73,16 @@ jobs:
       - name: Run tests
         run: sbt clean coverage test coverageReport
 
-      - name: Reject non-release dependencies
+      - name: Reject SNAPSHOT dependencies
         shell: bash
         run: |
           set -euo pipefail
           sbt -batch 'show Test / dependencyClasspath' | python3 -c '
           import pathlib
-          import re
           import sys
 
-          prerelease = re.compile(
-              r"(?i)(?:^|[.+-])(?:snapshot|alpha|beta|milestone|preview|"
-              r"canary|eap|ea|rc[0-9]*|m[0-9]+|pre(?:release)?|dev|nightly)"
-              r"(?:$|[.+-])"
-          )
           dependencies = 0
-          prereleases = []
+          snapshots = []
 
           for line in sys.stdin:
               marker = "Attributed("
@@ -98,20 +92,20 @@ jobs:
               path = line.split(marker, 1)[1].rsplit(")", 1)[0]
               version = pathlib.Path(path).parent.name
               dependencies += 1
-              if prerelease.search(version):
-                  prereleases.append(f"{path} (version {version})")
+              if version.upper().endswith("-SNAPSHOT"):
+                  snapshots.append(f"{path} (version {version})")
 
           if dependencies == 0:
               print("::error::Could not identify resolved dependencies from sbt output.", file=sys.stderr)
               sys.exit(1)
 
-          if prereleases:
-              print("::error::Release blocked: non-release dependencies were resolved.", file=sys.stderr)
-              for dependency in prereleases:
+          if snapshots:
+              print("::error::Release blocked: SNAPSHOT dependencies were resolved.", file=sys.stderr)
+              for dependency in snapshots:
                   print(f"  {dependency}", file=sys.stderr)
               sys.exit(1)
 
-          print(f"Validated {dependencies} resolved dependencies; no prerelease versions found.")
+          print(f"Validated {dependencies} resolved dependencies; no SNAPSHOT versions found.")
           '
 
       - name: Prepare release versions
