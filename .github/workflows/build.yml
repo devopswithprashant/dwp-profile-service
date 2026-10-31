@@ -72,6 +72,15 @@ jobs:
       - name: Run tests
         run: sbt clean coverage test coverageReport
 
+      - name: Test Sonar coverage conversion
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Convert Scoverage report for SonarQube
+        run: |
+          python3 scripts/scoverage_to_sonar.py \
+            target/scala-3.3.8/scoverage-report/scoverage.xml \
+            target/sonar/coverage.xml
+
       - name: Analyze with SonarQube
         uses: SonarSource/sonarqube-scan-action@v8.4.0
         env:
