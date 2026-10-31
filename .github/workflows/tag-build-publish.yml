@@ -124,7 +124,7 @@ jobs:
         env:
           FILE: "env/dev/profile-deployment.yaml"
           IMAGE: "docker.io/${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}"
-          NEW_TAG: ${{ needs.scala.outputs.projectVersion }}-${{ github.sha }}
+          NEW_TAG: ${{ github.ref_name }}
 
         run: |
           set -euo pipefail
@@ -172,7 +172,7 @@ jobs:
         env:
           FILE: "env/qa/profile-deployment.yaml"
           IMAGE: "docker.io/${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}"
-          NEW_TAG: ${{ needs.scala.outputs.projectVersion }}-${{ github.sha }}
+          NEW_TAG: ${{ github.ref_name }}
 
         run: |
           set -euo pipefail
@@ -220,7 +220,7 @@ jobs:
         env:
           FILE: "env/stage/profile-deployment.yaml"
           IMAGE: "docker.io/${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}"
-          NEW_TAG: ${{ needs.scala.outputs.projectVersion }}-${{ github.sha }}
+          NEW_TAG: ${{ github.ref_name }}
 
         run: |
           set -euo pipefail
@@ -268,7 +268,7 @@ jobs:
         env:
           FILE: "env/prod/profile-deployment.yaml"
           IMAGE: "docker.io/${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}"
-          NEW_TAG: ${{ needs.scala.outputs.projectVersion }}-${{ github.sha }}
+          NEW_TAG: ${{ github.ref_name }}
 
         run: |
           set -euo pipefail
