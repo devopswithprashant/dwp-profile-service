@@ -72,6 +72,15 @@ jobs:
       - name: Run tests
         run: sbt clean coverage test coverageReport
 
+      - name: Analyze with SonarQube
+        uses: SonarSource/sonarqube-scan-action@v8.4.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectVersion=${{ steps.project_version.outputs.version }}
+
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -91,5 +100,14 @@ jobs:
           # Optional: use GitHub Actions cache for build layers (fast incremental builds)
           #cache-from: type=gha
           #cache-to: type=gha,mode=max
+      
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'dwp-profile-service:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'          # Fails the pipeline if vulnerabilities are found
+          ignore-unfixed: true     # Optional: ignore CVEs without an available fix
+          severity: 'CRITICAL'
       
       
