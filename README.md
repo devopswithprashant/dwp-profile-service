@@ -104,6 +104,12 @@ and `latest`.
 The workflow skips commits prefixed with `[Gradle Release Plugin]`, which the
 release workflow uses for its version-only commits.
 
+After generating the Scoverage report, the build workflow converts it to
+SonarQube's generic coverage format and analyzes the Scala sources using
+[`sonar-project.properties`](./sonar-project.properties). Configure the
+`SONAR_TOKEN` Actions secret with a project analysis token. The SonarQube
+server must have a Scala analyzer installed to analyze Scala sources.
+
 `.github/workflows/tag-build-publish.yml` runs the same compile and test jobs
 when a `v*` tag is pushed. The tag must point to a commit on `main`; once the
 checks pass, the workflow publishes the image to
@@ -124,6 +130,7 @@ Configure these GitHub repository settings:
 | `DOCKERHUB_USERNAME` | Actions variable | Your Docker Hub username or organization |
 | `DOCKERHUB_TOKEN` | Actions secret | A Docker Hub access token with write access |
 | `RELEASE_TOKEN` | Actions secret | A token with repository contents write access |
+| `SONAR_TOKEN` | Actions secret | A SonarQube project analysis token |
 
 Create both Docker Hub repositories before their first publish. The images are
 available as
