@@ -110,6 +110,6 @@ jobs:
           format: 'table'
           exit-code: '1'          # Fails the pipeline if vulnerabilities are found
           ignore-unfixed: true     # Optional: ignore CVEs without an available fix
-          severity: 'CRITICAL'
+          severity: 'CRITICAL,HIGH'
       
       
